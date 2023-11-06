@@ -41,9 +41,7 @@ def rasterize_gaussians(
         scales,
         rotations,
         cov3Ds_precomp,
-        world_view,
         full_proj,
-        camera_center,
         raster_settings,
     )
 
@@ -59,9 +57,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         scales,
         rotations,
         cov3Ds_precomp,
-        world_view,
         full_proj,
-        camera_center,
         raster_settings,
     ):
 
@@ -106,7 +102,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         viewmatrix = raster_settings.viewmatrix
         projmatrix = raster_settings.projmatrix
         campos = raster_settings.campos
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, world_view, full_proj, camera_center, geomBuffer, binningBuffer, imgBuffer)
+        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, full_proj, geomBuffer, binningBuffer, imgBuffer)
         return color, radii
 
     @staticmethod
@@ -115,7 +111,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, world_view, full_proj, camera_center, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
+        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, full_proj, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
@@ -154,8 +150,8 @@ class _RasterizeGaussians(torch.autograd.Function):
 
         print(grad_sh[:4, :4, 0])
         grad_full_proj = grad_sh[:4, :4, 0]
-        grad_world_view = grad_sh[:4, :4, 0]
-        grad_camera_center = grad_sh[:3, 0, 0]
+        #grad_world_view = grad_sh[:4, :4, 0]
+        #grad_camera_center = grad_sh[:3, 0, 0]
         grads = (
             grad_means3D,
             grad_means2D,
@@ -165,9 +161,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_scales,
             grad_rotations,
             grad_cov3Ds_precomp,
-            grad_world_view,
             grad_full_proj,
-            grad_camera_center,
             None,
         )
 
