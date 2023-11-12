@@ -13,6 +13,8 @@
 #include "auxiliary.h"
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
+#include <iostream>
+
 namespace cg = cooperative_groups;
 
 // Backward pass for conversion of spherical harmonics to RGB for
@@ -361,12 +363,20 @@ __global__ void preprocessCUDA(
 	float* dL_dcov3D,
 	float* dL_dsh,
 	glm::vec3* dL_dscale,
-	glm::vec4* dL_drot)
+	glm::vec4* dL_drot,
+    float* dL_dprojmatrix)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
 		return;
 
+    if (threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+        printf("%s", "************");
+        for (int i = 0; i < 16; i++) {
+            printf("%f\n", proj[i]);
+        }
+        printf("%s", "************");
+    }
 	float3 m = means[idx];
 
 	// Taking care of gradients from the screenspace points
@@ -578,7 +588,8 @@ void BACKWARD::preprocess(
 	float* dL_dcov3D,
 	float* dL_dsh,
 	glm::vec3* dL_dscale,
-	glm::vec4* dL_drot)
+	glm::vec4* dL_drot,
+	float* dL_dprojmatrix)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
 	// Somewhat long, thus it is its own kernel rather than being part of 
@@ -601,6 +612,11 @@ void BACKWARD::preprocess(
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
 	// propagate color gradients to SH (if desireD), propagate 3D covariance
 	// matrix gradients to scale and rotation.
+    std::cout << "*****************************************************" << std::endl;
+    std:: cout << projmatrix << std::endl;
+    std:: cout << typeid(projmatrix).name() << std::endl;
+    projmatrix[0];
+    std::cout << "*****************************************************" << std::endl;
 	preprocessCUDA<NUM_CHANNELS> << < (P + 255) / 256, 256 >> > (
 		P, D, M,
 		(float3*)means3D,
@@ -618,7 +634,8 @@ void BACKWARD::preprocess(
 		dL_dcov3D,
 		dL_dsh,
 		dL_dscale,
-		dL_drot);
+        dL_drot,
+		dL_dprojmatrix);
 }
 
 void BACKWARD::render(
