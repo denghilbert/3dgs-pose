@@ -159,13 +159,13 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_drotations = torch::zeros({P, 4}, means3D.options());
   torch::Tensor dL_projmatrix = torch::zeros({4, 4}, means3D.options());
   
-  std::cout << "*****************************************************" << std::endl;
-  std::cout << "print torch::tensor" << std::endl;
-  std:: cout << projmatrix << std::endl;
-  std:: cout << &projmatrix << std::endl;
-  std:: cout << projmatrix.contiguous() << std::endl;
-  std:: cout << projmatrix.contiguous().data<float>() << std::endl;
-  std::cout << "*****************************************************" << std::endl;
+  //std::cout << "*****************************************************" << std::endl;
+  //std::cout << "print torch::tensor" << std::endl;
+  //std:: cout << projmatrix << std::endl;
+  //std:: cout << &projmatrix << std::endl;
+  //std:: cout << projmatrix.contiguous() << std::endl;
+  //std:: cout << projmatrix.contiguous().data<float>() << std::endl;
+  //std::cout << "*****************************************************" << std::endl;
   if(P != 0)
   {  
 	  CudaRasterizer::Rasterizer::backward(P, degree, M, R,

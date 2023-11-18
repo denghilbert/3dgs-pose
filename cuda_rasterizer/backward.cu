@@ -370,13 +370,6 @@ __global__ void preprocessCUDA(
 	if (idx >= P || !(radii[idx] > 0))
 		return;
 
-    if (threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
-        printf("%s", "************");
-        for (int i = 0; i < 16; i++) {
-            printf("%f\n", proj[i]);
-        }
-        printf("%s", "************");
-    }
 	float3 m = means[idx];
 
 	// Taking care of gradients from the screenspace points
@@ -612,11 +605,11 @@ void BACKWARD::preprocess(
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
 	// propagate color gradients to SH (if desireD), propagate 3D covariance
 	// matrix gradients to scale and rotation.
-    std::cout << "*****************************************************" << std::endl;
-    std:: cout << projmatrix << std::endl;
-    std:: cout << typeid(projmatrix).name() << std::endl;
-    projmatrix[0];
-    std::cout << "*****************************************************" << std::endl;
+    //std::cout << "*****************************************************" << std::endl;
+    //std:: cout << projmatrix << std::endl;
+    //std:: cout << typeid(projmatrix).name() << std::endl;
+    //projmatrix[0];
+    //std::cout << "*****************************************************" << std::endl;
 	preprocessCUDA<NUM_CHANNELS> << < (P + 255) / 256, 256 >> > (
 		P, D, M,
 		(float3*)means3D,
