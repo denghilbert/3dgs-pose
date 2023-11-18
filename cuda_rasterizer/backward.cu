@@ -364,8 +364,16 @@ __global__ void preprocessCUDA(
 	float* dL_dsh,
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot,
-    float* dL_dprojmatrix)
+    float* dL_dprojmatrix,
+    float* dL_dcampos)
 {
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************");
+    //    for (int i = 0; i < 3; i++)
+    //        printf("%f", dL_dcampos[i]);
+    //    printf("*********************************");
+    //}
+    //dL_dcampos[0] = 100.;
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
 		return;
@@ -582,7 +590,8 @@ void BACKWARD::preprocess(
 	float* dL_dsh,
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot,
-	float* dL_dprojmatrix)
+	float* dL_dprojmatrix,
+	float* dL_dcampos)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
 	// Somewhat long, thus it is its own kernel rather than being part of 
@@ -628,7 +637,8 @@ void BACKWARD::preprocess(
 		dL_dsh,
 		dL_dscale,
         dL_drot,
-		dL_dprojmatrix);
+		dL_dprojmatrix,
+		dL_dcampos);
 }
 
 void BACKWARD::render(

@@ -367,6 +367,7 @@ void CudaRasterizer::Rasterizer::backward(
 	float* dL_dscale,
 	float* dL_drot,
 	float* dL_dprojmatrix,
+    float* dL_dcampos,
 	bool debug)
 {
 	GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
@@ -432,6 +433,7 @@ void CudaRasterizer::Rasterizer::backward(
 		dL_dsh,
 		(glm::vec3*)dL_dscale,
 		(glm::vec4*)dL_drot,
-        dL_dprojmatrix), debug)
+        dL_dprojmatrix,
+        dL_dcampos), debug)
 
 }
