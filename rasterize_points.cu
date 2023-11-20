@@ -157,10 +157,15 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dsh = torch::zeros({P, M, 3}, means3D.options());
   torch::Tensor dL_dscales = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_drotations = torch::zeros({P, 4}, means3D.options());
-  torch::Tensor dL_dprojmatrix = torch::zeros({4, 4}, means3D.options());
+  torch::Tensor dL_dprojmatrix = torch::zeros({P, 4, 4}, means3D.options());
   torch::Tensor dL_dcampos = torch::zeros({3}, means3D.options());
   
+  //float data[] = { 1, 2, 3,
+  //               4, 5, 6 };
+  //torch::Tensor test = torch::from_blob(data, {2, 3});
   //std::cout << "*****************************************************" << std::endl;
+  //std::cout << test;
+  //std::cout << test.mean(1);
   //std::cout << "print torch::tensor" << std::endl;
   //std:: cout << projmatrix << std::endl;
   //std:: cout << &projmatrix << std::endl;
