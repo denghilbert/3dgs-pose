@@ -373,7 +373,7 @@ __global__ void preprocessCUDA(
     //        printf("%f", dL_dcampos[i]);
     //    printf("*********************************");
     //}
-    //dL_dcampos[0] = 100.;
+    dL_dcampos[0] = 10.;
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
 		return;

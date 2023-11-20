@@ -41,7 +41,9 @@ def rasterize_gaussians(
         scales,
         rotations,
         cov3Ds_precomp,
+        world_view,
         camera_center,
+        full_proj,
         raster_settings,
     )
 
@@ -57,7 +59,9 @@ class _RasterizeGaussians(torch.autograd.Function):
         scales,
         rotations,
         cov3Ds_precomp,
+        world_view,
         camera_center,
+        full_proj,
         raster_settings,
     ):
 
@@ -99,9 +103,6 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
-        viewmatrix = raster_settings.viewmatrix
-        projmatrix = raster_settings.projmatrix
-        campos = raster_settings.campos
         ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer)
         return color, radii
 
@@ -149,9 +150,13 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center = _C.rasterize_gaussians_backward(*args)
 
         #print(grad_sh[:4, :4, 0])
-        #grad_full_proj = grad_sh[:4, :4, 0]
-        #grad_world_view = grad_sh[:4, :4, 0]
-        #import pdb;pdb.set_trace()
+        grad_full_proj = torch.zeros(4, 4).cuda()
+        grad_world_view = torch.zeros(4, 4).cuda()
+        grad_world_view[0][0] = 1.
+        print(grad_camera_center)
+        print(grad_full_proj)
+        print(grad_world_view)
+        import pdb;pdb.set_trace()
         grads = (
             grad_means3D,
             grad_means2D,
@@ -161,7 +166,9 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_scales,
             grad_rotations,
             grad_cov3Ds_precomp,
+            grad_world_view,
             grad_camera_center,
+            grad_full_proj,
             None,
         )
 
