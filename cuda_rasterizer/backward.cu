@@ -365,19 +365,21 @@ __global__ void preprocessCUDA(
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot,
     float* dL_dprojmatrix,
-    float* dL_dcampos)
+    float3* dL_dcampos)
 {
-    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-    //    printf("*********************************");
-    //    for (int i = 0; i < 3; i++)
-    //        printf("%f", dL_dcampos[i]);
-    //    printf("*********************************");
-    //}
-    dL_dcampos[0] = 10.;
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
 		return;
 
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+        printf("*********************************\n");
+        printf("number of points:");
+        printf("%d\n", P);
+        printf("*********************************\n");
+    }
+
+
+    dL_dcampos[idx].x = 1;
 	float3 m = means[idx];
 
 	// Taking care of gradients from the screenspace points
@@ -615,9 +617,8 @@ void BACKWARD::preprocess(
 	// propagate color gradients to SH (if desireD), propagate 3D covariance
 	// matrix gradients to scale and rotation.
     //std::cout << "*****************************************************" << std::endl;
-    //std:: cout << projmatrix << std::endl;
-    //std:: cout << typeid(projmatrix).name() << std::endl;
-    //projmatrix[0];
+    //std::cout << "abcd" << std::endl;
+    //std:: cout << campos << std::endl;
     //std::cout << "*****************************************************" << std::endl;
 	preprocessCUDA<NUM_CHANNELS> << < (P + 255) / 256, 256 >> > (
 		P, D, M,
@@ -638,7 +639,7 @@ void BACKWARD::preprocess(
 		dL_dscale,
         dL_drot,
 		dL_dprojmatrix,
-		dL_dcampos);
+		(float3*)dL_dcampos);
 }
 
 void BACKWARD::render(
