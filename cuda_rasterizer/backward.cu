@@ -17,9 +17,24 @@
 
 namespace cg = cooperative_groups;
 
+template <typename T>
+__device__ void checkType(T var) {
+    printf("Unknown type\n");
+}
+
+template <>
+__device__ void checkType<int>(int var) {
+    printf("Integer type\n");
+}
+
+template <>
+__device__ void checkType<float>(float var) {
+    printf("Float type\n");
+}
+
 // Backward pass for conversion of spherical harmonics to RGB for
 // each Gaussian.
-__device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, const bool* clamped, const glm::vec3* dL_dcolor, glm::vec3* dL_dmeans, glm::vec3* dL_dshs)
+__device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, const bool* clamped, const glm::vec3* dL_dcolor, glm::vec3* dL_dmeans, glm::vec3* dL_dshs, glm::vec3* dL_dcampos)
 {
 	// Compute intermediate values, as it is done during forward
 	glm::vec3 pos = means[idx];
@@ -130,6 +145,14 @@ __device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::
 	// is influenced by the Gaussian's mean, so SHs gradients
 	// must propagate back into 3D position.
 	glm::vec3 dL_ddir(glm::dot(dRGBdx, dL_dRGB), glm::dot(dRGBdy, dL_dRGB), glm::dot(dRGBdz, dL_dRGB));
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("derivative of rgb\n");
+    //    printf("%d\n", deg);
+    //    printf("%f\n", dL_dRGB.x);
+    //    printf("%f\n", dRGBdx.x);
+    //    printf("*********************************\n");
+    //}
 
 	// Account for normalization of direction
 	float3 dL_dmean = dnormvdv(float3{ dir_orig.x, dir_orig.y, dir_orig.z }, float3{ dL_ddir.x, dL_ddir.y, dL_ddir.z });
@@ -138,6 +161,12 @@ __device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::
 	// that is caused because the mean affects the view-dependent color.
 	// Additional mean gradient is accumulated in below methods.
 	dL_dmeans[idx] += glm::vec3(dL_dmean.x, dL_dmean.y, dL_dmean.z);
+    
+    // The derivative of campos is accidentally the reverse direction of the 3d mean derivative.
+    // Moving gaussian left == moving cam right
+    //dL_dcampos[idx].x += 1;
+	dL_dcampos[idx] += glm::vec3(-dL_dmean.x, -dL_dmean.y, -dL_dmean.z);
+
 }
 
 // Backward version of INVERSE 2D covariance matrix computation
@@ -365,21 +394,35 @@ __global__ void preprocessCUDA(
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot,
     float* dL_dprojmatrix,
-    float3* dL_dcampos)
+    glm::vec3* dL_dcampos)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
 		return;
 
-    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-        printf("*********************************\n");
-        printf("number of points:");
-        printf("%d\n", P);
-        printf("*********************************\n");
-    }
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("number of points:");
+    //    printf("%d\n", P);
+    //    printf("*********************************\n");
+    //}
 
 
-    dL_dcampos[idx].x = 1;
+    // one thread doesn't work.... shit...
+    // count the number of P
+    //dL_dcampos[idx].x += 1;
+    //if (idx >= 4484 && idx <= 4487) {
+    //    printf("*********************************\n");
+    //    printf("into %d\n", idx);
+    //    printf("%d\n", threadIdx.x);
+    //    printf("%d\n", threadIdx.y);
+    //    printf("%d\n", threadIdx.z);
+    //    printf("%d\n", blockIdx.x);
+    //    printf("%d\n", blockIdx.y);
+    //    printf("%d\n", blockIdx.z);
+    //    printf("*********************************\n");
+    //}
+
 	float3 m = means[idx];
 
 	// Taking care of gradients from the screenspace points
@@ -401,7 +444,7 @@ __global__ void preprocessCUDA(
 
 	// Compute gradient updates due to computing colors from SHs
 	if (shs)
-		computeColorFromSH(idx, D, M, (glm::vec3*)means, *campos, shs, clamped, (glm::vec3*)dL_dcolor, (glm::vec3*)dL_dmeans, (glm::vec3*)dL_dsh);
+		computeColorFromSH(idx, D, M, (glm::vec3*)means, *campos, shs, clamped, (glm::vec3*)dL_dcolor, (glm::vec3*)dL_dmeans, (glm::vec3*)dL_dsh, dL_dcampos);
 
 	// Compute gradient updates due to computing covariance from scale/rotation
 	if (scales)
@@ -639,7 +682,7 @@ void BACKWARD::preprocess(
 		dL_dscale,
         dL_drot,
 		dL_dprojmatrix,
-		(float3*)dL_dcampos);
+		(glm::vec3*)dL_dcampos);
 }
 
 void BACKWARD::render(
