@@ -24,6 +24,18 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 	// Efficient View Synthesis" by Zhang et al. (2022)
 	glm::vec3 pos = means[idx];
 	glm::vec3 dir = pos - campos;
+
+    // check the length function and dir xyz
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("glm::length function");
+    //    printf("%f\n", glm::length(dir));
+    //    printf("%f\n", dir.x);
+    //    printf("%f\n", dir.y);
+    //    printf("%f\n", dir.z);
+    //    printf("%d\n", deg);
+    //    printf("*********************************\n");
+    //}
 	dir = dir / glm::length(dir);
 
 	glm::vec3* sh = ((glm::vec3*)shs) + idx * max_coeffs;
