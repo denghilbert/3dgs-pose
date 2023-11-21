@@ -157,7 +157,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dsh = torch::zeros({P, M, 3}, means3D.options());
   torch::Tensor dL_dscales = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_drotations = torch::zeros({P, 4}, means3D.options());
-  torch::Tensor dL_dprojmatrix = torch::zeros({4, 4}, means3D.options());
+  torch::Tensor dL_dprojmatrix = torch::zeros({P, 4, 4}, means3D.options());
+  torch::Tensor dL_dviewmatrix = torch::zeros({P, 4, 4}, means3D.options());
   torch::Tensor dL_dcampos = torch::zeros({P, 3}, means3D.options());
   
   //float data[] = { 1, 2, 3,
@@ -205,6 +206,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  dL_dscales.contiguous().data<float>(),
 	  dL_drotations.contiguous().data<float>(),
 	  dL_dprojmatrix.contiguous().data<float>(),
+	  dL_dviewmatrix.contiguous().data<float>(),
 	  dL_dcampos.contiguous().data<float>(),
 	  debug);
 

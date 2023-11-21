@@ -61,6 +61,7 @@ namespace BACKWARD
 		glm::vec3* dL_dscale,
 		glm::vec4* dL_drot,
 		float* dL_dprojmatrix,
+		float* dL_dviewmatrix,
         float* dL_dcampos);
 }
 
