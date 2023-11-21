@@ -166,9 +166,9 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   //std::cout << test;
   //std::cout << test.mean(1);
   //std::cout << test.sum(1);
-  std::cout << "*****************************************************\n" << std::endl;
-  std::cout << "DO NOT tried to access the contiguous().data<>(), probably because the pointer is on cpu but our original vairble is create on GPU\n" << std::endl;
-  std:: cout << means3D.options() << std::endl;
+  //std::cout << "*****************************************************\n" << std::endl;
+  //std::cout << "DO NOT tried to access the contiguous().data<>(), probably because the pointer is on cpu but our original vairble is create on GPU\n" << std::endl;
+  //std:: cout << means3D.options() << std::endl;
   //std:: cout << campos.contiguous() << std::endl;
   //std::cout << "abc" << std::endl;
   //std:: cout << campos.contiguous().data<float>() << std::endl;
@@ -210,6 +210,18 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 
   }
 
+  // check which points are not processed by cuda kernel
+  //std::cout << "*****************************************************\n" << std::endl;
+  //std::cout << (dL_dcampos[0][0].item<bool>()) << std::endl;
+  //std::cout << (!dL_dcampos[0][0].item<bool>()) << std::endl;
+  //std::cout << (dL_dcampos[0][0].item<int>() != int(1)) << std::endl;
+  //for (int i=0; i < 13477; i++) {
+  //    if (!dL_dcampos[i][0].item<bool>()) {
+  //        std::cout << dL_dcampos[i] << std::endl;
+  //        std::cout << "pos:" << i << std::endl;
+  //    }
+  //}
+  //std::cout << "*****************************************************\n" << std::endl;
   return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.sum(0));
 }
 
