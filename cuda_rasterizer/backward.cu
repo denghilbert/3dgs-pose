@@ -440,6 +440,23 @@ __global__ void preprocessCUDA(
 	dL_dmean.x = (image_width / 2) * (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
 	dL_dmean.y = (image_width / 2) * (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
 	dL_dmean.z = (image_width / 2) * (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
+    // Original 3dgs implementation without height and width as the constants
+	//dL_dmean.x = (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
+	//dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
+	//dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
+
+    //Compute the loss gradient w.r.t projection matrix 
+    // the graident flow back from ux (screen)
+    dL_dprojmatrix[idx][0] += (image_width / 2) * m_w * m.x * dL_dmean2D[idx].x;
+    dL_dprojmatrix[idx][4] += (image_width / 2) * m_w * m.y * dL_dmean2D[idx].x;
+    dL_dprojmatrix[idx][8] += (image_width / 2) * m_w * m.z * dL_dmean2D[idx].x;
+    dL_dprojmatrix[idx][12] += (image_width / 2) * m_w * dL_dmean2D[idx].x;
+    // the graident flow back from uy (screen)
+    dL_dprojmatrix[idx][1] += (image_height / 2) * m_w * m.x * dL_dmean2D[idx].y;
+    dL_dprojmatrix[idx][5] += (image_height / 2) * m_w * m.y * dL_dmean2D[idx].y;
+    dL_dprojmatrix[idx][9] += (image_height / 2) * m_w * m.z * dL_dmean2D[idx].y;
+    dL_dprojmatrix[idx][13] += (image_height / 2) * m_w * dL_dmean2D[idx].y;
+
 
 	// That's the second part of the mean gradient. Previous computation
 	// of cov2D and following SH conversion also affects it.
