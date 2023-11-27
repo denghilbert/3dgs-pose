@@ -67,6 +67,7 @@ namespace CudaRasterizer
 			const float* projmatrix,
 			const float* campos,
 			const float tan_fovx, float tan_fovy,
+	        const int image_height, int image_width,
 			const int* radii,
 			char* geom_buffer,
 			char* binning_buffer,

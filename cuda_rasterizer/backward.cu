@@ -386,6 +386,7 @@ __global__ void preprocessCUDA(
 	const glm::vec4* rotations,
 	const float scale_modifier,
 	const float* proj,
+    const int image_height, int image_width,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
 	glm::vec3* dL_dmeans,
@@ -404,7 +405,8 @@ __global__ void preprocessCUDA(
     //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
     //    printf("*********************************\n");
     //    printf("number of points:");
-    //    printf("%d\n", P);
+    //    printf("%d\n", image_width);
+    //    printf("%d\n", image_height);
     //    printf("*********************************\n");
     //}
 
@@ -627,6 +629,7 @@ void BACKWARD::preprocess(
 	const float* projmatrix,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
+    const int image_height, int image_width,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
 	const float* dL_dconic,
@@ -676,6 +679,7 @@ void BACKWARD::preprocess(
 		(glm::vec4*)rotations,
 		scale_modifier,
 		projmatrix,
+        image_height, image_width,
 		campos,
 		(float3*)dL_dmean2D,
 		(glm::vec3*)dL_dmean3D,

@@ -51,6 +51,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
     const torch::Tensor& projmatrix,
 	const float tan_fovx, 
 	const float tan_fovy,
+	const int image_height,
+	const int image_width,
     const torch::Tensor& dL_dout_color,
 	const torch::Tensor& sh,
 	const int degree,
