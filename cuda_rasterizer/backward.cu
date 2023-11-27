@@ -446,16 +446,21 @@ __global__ void preprocessCUDA(
 	//dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
 
     //Compute the loss gradient w.r.t projection matrix 
-    // the graident flow back from ux (screen)
-    dL_dprojmatrix[idx][0] += (image_width / 2) * m_w * m.x * dL_dmean2D[idx].x;
-    dL_dprojmatrix[idx][4] += (image_width / 2) * m_w * m.y * dL_dmean2D[idx].x;
-    dL_dprojmatrix[idx][8] += (image_width / 2) * m_w * m.z * dL_dmean2D[idx].x;
-    dL_dprojmatrix[idx][12] += (image_width / 2) * m_w * dL_dmean2D[idx].x;
-    // the graident flow back from uy (screen)
-    dL_dprojmatrix[idx][1] += (image_height / 2) * m_w * m.x * dL_dmean2D[idx].y;
-    dL_dprojmatrix[idx][5] += (image_height / 2) * m_w * m.y * dL_dmean2D[idx].y;
-    dL_dprojmatrix[idx][9] += (image_height / 2) * m_w * m.z * dL_dmean2D[idx].y;
-    dL_dprojmatrix[idx][13] += (image_height / 2) * m_w * dL_dmean2D[idx].y;
+    // the graident flow back from ux (screen), p0, p4, p8, p12
+    dL_dprojmatrix[16 * idx + 0] += (image_width / 2) * m_w * m.x * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 4] += (image_width / 2) * m_w * m.y * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 8] += (image_width / 2) * m_w * m.z * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 12] += (image_width / 2) * m_w * dL_dmean2D[idx].x;
+    // the graident flow back from uy (screen), p1, p5, p9, p13
+    dL_dprojmatrix[16 * idx + 1] += (image_height / 2) * m_w * m.x * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 5] += (image_height / 2) * m_w * m.y * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 9] += (image_height / 2) * m_w * m.z * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 13] += (image_height / 2) * m_w * dL_dmean2D[idx].y;
+    // the graident flow back from both ux and uy (screen), p3, p7, p11, p15
+    dL_dprojmatrix[16 * idx + 3] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 7] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 11] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 15] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
 
 
 	// That's the second part of the mean gradient. Previous computation
