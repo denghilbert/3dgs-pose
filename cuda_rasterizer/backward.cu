@@ -437,9 +437,9 @@ __global__ void preprocessCUDA(
 	glm::vec3 dL_dmean;
 	float mul1 = (proj[0] * m.x + proj[4] * m.y + proj[8] * m.z + proj[12]) * m_w * m_w;
 	float mul2 = (proj[1] * m.x + proj[5] * m.y + proj[9] * m.z + proj[13]) * m_w * m_w;
-	dL_dmean.x = (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
-	dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
-	dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
+	dL_dmean.x = (image_width / 2) * (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
+	dL_dmean.y = (image_width / 2) * (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
+	dL_dmean.z = (image_width / 2) * (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
 
 	// That's the second part of the mean gradient. Previous computation
 	// of cov2D and following SH conversion also affects it.
