@@ -468,7 +468,7 @@ __global__ void preprocessCUDA(
     //    printf("*********************************\n");
     //    printf("index is:");
     //    printf("%d\n", idx);
-    //    for (int i = 0; i < 5; i++) {
+    //    for (int i = 0; i < 4; i++) {
     //        printf("%f\n", test[idx + i][0]);
     //        printf("%f\n", test[idx + i][1]);
     //        printf("%f\n", test[idx + i][2]);

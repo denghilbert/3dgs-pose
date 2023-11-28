@@ -114,7 +114,7 @@ RasterizeGaussiansCUDA(
   return std::make_tuple(rendered, out_color, radii, geomBuffer, binningBuffer, imgBuffer);
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
  	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -160,7 +160,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dscales = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_drotations = torch::zeros({P, 4}, means3D.options());
   torch::Tensor dL_dprojmatrix = torch::zeros({P, 16}, means3D.options());
-  torch::Tensor dL_dviewmatrix = torch::zeros({P, 4, 4}, means3D.options());
+  torch::Tensor dL_dviewmatrix = torch::zeros({P, 16}, means3D.options());
   torch::Tensor dL_dcampos = torch::zeros({P, 3}, means3D.options());
   
   //float data[] = { 1, 2, 3,
@@ -228,7 +228,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   //    }
   //}
   //std::cout << "*****************************************************\n" << std::endl;
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.sum(0));
+  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.sum(0), dL_dprojmatrix.mean(0));
 }
 
 torch::Tensor markVisible(
