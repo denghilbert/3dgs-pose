@@ -463,16 +463,15 @@ __global__ void preprocessCUDA(
     dL_dprojmatrix[16 * idx + 15] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
     // check the gradient
     // also an example to printf value
-    //const glm::vec4* test = (glm::vec4*)dL_dprojmatrix;
+    //const glm::mat4* test = (glm::mat4*)dL_dprojmatrix;
     //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
     //    printf("*********************************\n");
     //    printf("index is:");
     //    printf("%d\n", idx);
     //    for (int i = 0; i < 4; i++) {
-    //        printf("%f\n", test[idx + i][0]);
-    //        printf("%f\n", test[idx + i][1]);
-    //        printf("%f\n", test[idx + i][2]);
-    //        printf("%f\n", test[idx + i][3]);
+    //        for (int j = 0; j < 4; j++) {
+    //            printf("%f\n", test[idx][i][j]);
+    //        }
     //    }
     //    printf("*********************************\n");
     //}
