@@ -645,6 +645,16 @@ renderCUDA(
 			atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG);
 			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
 
+            // check 2x2 matrix will have one 0. unsigned value
+            //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+            //    printf("************************\n");
+            //    printf("%f\n",dL_dconic2D[global_id].x);
+            //    printf("%f\n",dL_dconic2D[global_id].y);
+            //    printf("%f\n",dL_dconic2D[global_id].z);
+            //    printf("%f\n",dL_dconic2D[global_id].w);
+            //    printf("************************\n");
+            //}
+
 			// Update gradients w.r.t. opacity of the Gaussian
 			atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
 		}
@@ -697,6 +707,7 @@ void BACKWARD::preprocess(
 		(float3*)dL_dmean3D,
 		dL_dcov3D,
 		dL_dviewmatrix);
+
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
 	// propagate color gradients to SH (if desireD), propagate 3D covariance
