@@ -149,15 +149,16 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in backward. Writing snapshot_bw.dump for debugging.\n")
                 raise ex
         else:
-            grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center, grad_full_proj = _C.rasterize_gaussians_backward(*args)
+            grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center, grad_full_proj, grad_world_view = _C.rasterize_gaussians_backward(*args)
 
         # remember to set three gradient to 0 if recovering original 3dgs
         #grad_camera_center = torch.zeros(3).cuda()
         #grad_full_proj = torch.zeros(4, 4).cuda()
-        grad_world_view = torch.zeros(4, 4).cuda()
+        #grad_world_view = torch.zeros(4, 4).cuda()
 
         # reshape grad_full_proj from 16 to 4x4
         grad_full_proj = grad_full_proj[:, None].reshape(4, 4)
+        grad_world_view = grad_world_view[:, None].reshape(4, 4)
 
         #grad_world_view[0][0] = 1.
         #print(grad_camera_center)
