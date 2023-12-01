@@ -108,6 +108,21 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 		viewmatrix[1], viewmatrix[5], viewmatrix[9],
 		viewmatrix[2], viewmatrix[6], viewmatrix[10]);
 
+    //  the order of rotation part from viewmatrix is the inversion of original viewmatrix
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("viewmatrix\n");
+    //    for (int i = 0; i < 3; i++) {
+    //        for (int j = 0; j < 3; j++) {
+    //            if (j < 2) 
+    //                printf("%f ", W[i][j]);
+    //            else
+    //                printf("%f\n", W[i][j]);
+    //        }
+    //    }
+    //    printf("*********************************\n");
+    //}
+
 	glm::mat3 T = W * J;
 
 	glm::mat3 Vrk = glm::mat3(
@@ -243,6 +258,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
 	float my_radius = ceil(3.f * sqrt(max(lambda1, lambda2)));
 	float2 point_image = { ndc2Pix(p_proj.x, W), ndc2Pix(p_proj.y, H) };
+
 	uint2 rect_min, rect_max;
 	getRect(point_image, my_radius, rect_min, rect_max, grid);
 	if ((rect_max.x - rect_min.x) * (rect_max.y - rect_min.y) == 0)
