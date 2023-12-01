@@ -102,11 +102,19 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 		focal_x / t.z, 0.0f, -(focal_x * t.x) / (t.z * t.z),
 		0.0f, focal_y / t.z, -(focal_y * t.y) / (t.z * t.z),
 		0, 0, 0);
+	//glm::mat3 J = glm::mat3(
+    //    focal_x / t.z, 0.0f, 0,
+	//	0.0f, focal_y / t.z, 0,
+	//	-(focal_x * t.x) / (t.z * t.z), -(focal_y * t.y) / (t.z * t.z), 0);
 
 	glm::mat3 W = glm::mat3(
 		viewmatrix[0], viewmatrix[4], viewmatrix[8],
 		viewmatrix[1], viewmatrix[5], viewmatrix[9],
 		viewmatrix[2], viewmatrix[6], viewmatrix[10]);
+	//glm::mat3 W = glm::mat3(
+	//	viewmatrix[0], viewmatrix[1], viewmatrix[2],
+	//	viewmatrix[4], viewmatrix[5], viewmatrix[6],
+	//	viewmatrix[8], viewmatrix[9], viewmatrix[10]);
 
     //  the order of rotation part from viewmatrix is the inversion of original viewmatrix
     //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
@@ -124,6 +132,7 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
     //}
 
 	glm::mat3 T = W * J;
+	//glm::mat3 T = J * W;
 
 	glm::mat3 Vrk = glm::mat3(
 		cov3D[0], cov3D[1], cov3D[2],
@@ -131,6 +140,7 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 		cov3D[2], cov3D[4], cov3D[5]);
 
 	glm::mat3 cov = glm::transpose(T) * glm::transpose(Vrk) * T;
+	//glm::mat3 cov = T * Vrk * glm::transpose(T);
 
 	// Apply low-pass filter: every Gaussian should be at least
 	// one pixel wide/high. Discard 3rd row and column.

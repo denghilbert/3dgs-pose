@@ -200,21 +200,33 @@ __global__ void computeCov2DCUDA(int P,
 	const float limx = 1.3f * tan_fovx;
 	const float limy = 1.3f * tan_fovy;
 	const float txtz = t.x / t.z;
-	const float tytz = t.y / t.z;
+	const float tytz = t.y / t.z; 
+    // return t.x if -limx < txtz < limx
+    // return -limx if txtz < -limx
+    // return limx if txtz > limx
 	t.x = min(limx, max(-limx, txtz)) * t.z;
 	t.y = min(limy, max(-limy, tytz)) * t.z;
 	
 	const float x_grad_mul = txtz < -limx || txtz > limx ? 0 : 1;
 	const float y_grad_mul = tytz < -limy || tytz > limy ? 0 : 1;
 
-	glm::mat3 J = glm::mat3(h_x / t.z, 0.0f, -(h_x * t.x) / (t.z * t.z),
+	glm::mat3 J = glm::mat3(
+        h_x / t.z, 0.0f, -(h_x * t.x) / (t.z * t.z),
 		0.0f, h_y / t.z, -(h_y * t.y) / (t.z * t.z),
 		0, 0, 0);
+	//glm::mat3 J = glm::mat3(
+    //    h_x / t.z, 0.0f, 0,
+	//	0.0f, h_y / t.z, 0,
+	//	-(h_x * t.x) / (t.z * t.z), -(h_y * t.y) / (t.z * t.z), 0);
 
 	glm::mat3 W = glm::mat3(
 		view_matrix[0], view_matrix[4], view_matrix[8],
 		view_matrix[1], view_matrix[5], view_matrix[9],
 		view_matrix[2], view_matrix[6], view_matrix[10]);
+	//glm::mat3 W = glm::mat3(
+	//	view_matrix[0], view_matrix[1], view_matrix[2],
+	//	view_matrix[4], view_matrix[5], view_matrix[6],
+	//	view_matrix[8], view_matrix[9], view_matrix[10]);
 
 	glm::mat3 Vrk = glm::mat3(
 		cov3D[0], cov3D[1], cov3D[2],
@@ -222,8 +234,10 @@ __global__ void computeCov2DCUDA(int P,
 		cov3D[2], cov3D[4], cov3D[5]);
 
 	glm::mat3 T = W * J;
+	//glm::mat3 T = J * W;
 
 	glm::mat3 cov2D = glm::transpose(T) * glm::transpose(Vrk) * T;
+	//glm::mat3 cov2D = T * Vrk * glm::transpose(T);
 
 	// Use helper variables for 2D covariance entries. More compact.
 	float a = cov2D[0][0] += 0.3f;
@@ -278,6 +292,10 @@ __global__ void computeCov2DCUDA(int P,
 		(T[0][0] * Vrk[1][0] + T[0][1] * Vrk[1][1] + T[0][2] * Vrk[1][2]) * dL_db;
 	float dL_dT12 = 2 * (T[1][0] * Vrk[2][0] + T[1][1] * Vrk[2][1] + T[1][2] * Vrk[2][2]) * dL_dc +
 		(T[0][0] * Vrk[2][0] + T[0][1] * Vrk[2][1] + T[0][2] * Vrk[2][2]) * dL_db;
+    float dL_dT20 = 0.;
+    float dL_dT21 = 0.;
+    float dL_dT22 = 0.;
+
 
 	// Gradients of loss w.r.t. upper 3x2 non-zero entries of Jacobian matrix
 	// T = W * J
@@ -295,6 +313,26 @@ __global__ void computeCov2DCUDA(int P,
 	float dL_dty = y_grad_mul * -h_y * tz2 * dL_dJ12;
 	float dL_dtz = -h_x * tz2 * dL_dJ00 - h_y * tz2 * dL_dJ11 + (2 * h_x * t.x) * tz3 * dL_dJ02 + (2 * h_y * t.y) * tz3 * dL_dJ12;
 
+    // Gradients of loss w.r.t. viewmatrix
+    // T = W * J
+    //float dL_dv3 = 0.;
+    //float dL_dv7 = 0.;
+    //float dL_dv8 = 0.;
+    //float dL_dv9 = 0.;
+    //float dL_dv11 = 0.;
+    //float dL_dv12 = 0.;
+    //float dL_dv13 = 0.;
+    //float dL_dv15 = 0.;
+    dL_dviewmatrix[0] = h_x * tz;
+    dL_dviewmatrix[1] = h_x * tz;
+    dL_dviewmatrix[4] = h_y * tz;
+    dL_dviewmatrix[5] = h_y * tz;
+    dL_dviewmatrix[2] = -(view_matrix[0] + view_matrix[1]) * t.x * h_x * tz2 - (view_matrix[4] + view_matrix[5] + view_matrix[6]) * t.x * h_y * tz2 + (tz - view_matrix[2] * t.x) * h_x * tz2;
+    dL_dviewmatrix[6] = -(view_matrix[0] + view_matrix[1] + view_matrix[2]) * t.y * h_x * tz2 - (view_matrix[4] + view_matrix[5]) * t.y * h_y * tz2 + (tz - view_matrix[6] * t.y) * h_y * tz2;
+    dL_dviewmatrix[10] = -(view_matrix[0] + view_matrix[1] + view_matrix[2] + view_matrix[4] + view_matrix[5] + view_matrix[6]) * t.z * h_x * tz2;
+    dL_dviewmatrix[14] = -(view_matrix[0] + view_matrix[1] + view_matrix[2] + view_matrix[4] + view_matrix[5] + view_matrix[6]) * h_x * tz2;
+
+    
 	// Account for transformation of mean to t
 	// t = transformPoint4x3(mean, view_matrix);
 	float3 dL_dmean = transformVec4x3Transpose({ dL_dtx, dL_dty, dL_dtz }, view_matrix);
@@ -447,20 +485,20 @@ __global__ void preprocessCUDA(
 
     //Compute the loss gradient w.r.t projection matrix 
     // the graident flow back from ux (screen), p0, p4, p8, p12
-    dL_dprojmatrix[16 * idx + 0] += (image_width / 2) * m_w * m.x * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 4] += (image_width / 2) * m_w * m.y * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 8] += (image_width / 2) * m_w * m.z * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 12] += (image_width / 2) * m_w * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 0] = (image_width / 2) * m_w * m.x * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 4] = (image_width / 2) * m_w * m.y * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 8] = (image_width / 2) * m_w * m.z * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 12] = (image_width / 2) * m_w * dL_dmean2D[idx].x;
     // the graident flow back from uy (screen), p1, p5, p9, p13
-    dL_dprojmatrix[16 * idx + 1] += (image_height / 2) * m_w * m.x * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 5] += (image_height / 2) * m_w * m.y * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 9] += (image_height / 2) * m_w * m.z * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 13] += (image_height / 2) * m_w * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 1] = (image_height / 2) * m_w * m.x * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 5] = (image_height / 2) * m_w * m.y * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 9] = (image_height / 2) * m_w * m.z * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 13] = (image_height / 2) * m_w * dL_dmean2D[idx].y;
     // the graident flow back from both ux and uy (screen), p3, p7, p11, p15
-    dL_dprojmatrix[16 * idx + 3] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 7] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 11] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 15] += ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 3] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 7] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 11] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 15] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
     // check the gradient
     // also an example to printf value
     //const glm::mat4* test = (glm::mat4*)dL_dprojmatrix;
