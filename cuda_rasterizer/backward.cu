@@ -323,14 +323,14 @@ __global__ void computeCov2DCUDA(int P,
     //float dL_dv12 = 0.;
     //float dL_dv13 = 0.;
     //float dL_dv15 = 0.;
-    dL_dviewmatrix[0] = h_x * tz;
-    dL_dviewmatrix[1] = h_x * tz;
-    dL_dviewmatrix[4] = h_y * tz;
-    dL_dviewmatrix[5] = h_y * tz;
-    dL_dviewmatrix[2] = -(view_matrix[0] + view_matrix[1]) * t.x * h_x * tz2 - (view_matrix[4] + view_matrix[5] + view_matrix[6]) * t.x * h_y * tz2 + (tz - view_matrix[2] * t.x) * h_x * tz2;
-    dL_dviewmatrix[6] = -(view_matrix[0] + view_matrix[1] + view_matrix[2]) * t.y * h_x * tz2 - (view_matrix[4] + view_matrix[5]) * t.y * h_y * tz2 + (tz - view_matrix[6] * t.y) * h_y * tz2;
-    dL_dviewmatrix[10] = -(view_matrix[0] + view_matrix[1] + view_matrix[2] + view_matrix[4] + view_matrix[5] + view_matrix[6]) * t.z * h_x * tz2;
-    dL_dviewmatrix[14] = -(view_matrix[0] + view_matrix[1] + view_matrix[2] + view_matrix[4] + view_matrix[5] + view_matrix[6]) * h_x * tz2;
+    dL_dviewmatrix[0] = h_x * tz * dL_dT00;
+    dL_dviewmatrix[1] = h_x * tz * dL_dT01;
+    dL_dviewmatrix[4] = h_y * tz * dL_dT10;
+    dL_dviewmatrix[5] = h_y * tz * dL_dT11;
+    dL_dviewmatrix[2] = -(view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01) * t.x * h_x * tz2 - (view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * t.x * h_y * tz2 + (tz - view_matrix[2] * t.x) * h_x * tz2 * dL_dT02;
+    dL_dviewmatrix[6] = -(view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02) * t.y * h_x * tz2 - (view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11) * t.y * h_y * tz2 + (tz - view_matrix[6] * t.y) * h_y * tz2 * dL_dT12;
+    dL_dviewmatrix[10] = -(view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02 + view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * t.z * h_x * tz2;
+    dL_dviewmatrix[14] = -(view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02 + view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * h_x * tz2;
 
     
 	// Account for transformation of mean to t
