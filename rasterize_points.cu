@@ -228,7 +228,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   //    }
   //}
   //std::cout << "*****************************************************\n" << std::endl;
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0));
+  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.sum(0));
 }
 
 torch::Tensor markVisible(

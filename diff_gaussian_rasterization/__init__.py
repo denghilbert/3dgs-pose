@@ -30,7 +30,7 @@ def rasterize_gaussians(
     world_view,
     full_proj,
     camera_center,
-    raster_settings
+    raster_settings,
 ):
     return _RasterizeGaussians.apply(
         means3D,
@@ -85,7 +85,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.sh_degree,
             raster_settings.campos,
             raster_settings.prefiltered,
-            raster_settings.debug
+            raster_settings.debug,
         )
 
         # Invoke C++/CUDA rasterizer
@@ -159,11 +159,20 @@ class _RasterizeGaussians(torch.autograd.Function):
         # reshape grad_full_proj from 16 to 4x4
         grad_full_proj = grad_full_proj[:, None].reshape(4, 4)
         grad_world_view = grad_world_view[:, None].reshape(4, 4)
+        # print the gradient scale of three chains
+        #if raster_settings.debug_iter in [2000, 4000, 6000]:
+        #    print(grad_camera_center)
+        #    print(grad_world_view)
+        #    print(grad_full_proj)
 
         #grad_world_view[0][0] = 1.
-        #print(grad_camera_center)
-        #print(grad_full_proj)
-        #print(grad_world_view)
+        #if raster_settings.debug_iter in [1001, 1002]:
+        #    print("*"*20)
+        #    grad_camera_center = torch.zeros(3).cuda()
+        #    print(grad_camera_center)
+        #    print(grad_full_proj)
+        #    print(grad_world_view)
+        #    print("*"*20)
         #import pdb;pdb.set_trace()
         grads = (
             grad_means3D,
@@ -195,6 +204,7 @@ class GaussianRasterizationSettings(NamedTuple):
     campos : torch.Tensor
     prefiltered : bool
     debug : bool
+    debug_iter : int
 
 class GaussianRasterizer(nn.Module):
     def __init__(self, raster_settings):
