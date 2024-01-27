@@ -556,6 +556,7 @@ renderCUDA(
 	const float* __restrict__ dL_dpixels,
 	float3* __restrict__ dL_dmean2D,
 	float4* __restrict__ dL_dconic2D,
+	float* __restrict__ covariance,
 	float* __restrict__ dL_dopacity,
 	float* __restrict__ dL_dcolors)
 {
@@ -633,9 +634,9 @@ renderCUDA(
 				continue;
 
 			// Compute blending values, as before.
-			const float2 xy = collected_xy[j];
-			const float2 d = { xy.x - pixf.x, xy.y - pixf.y };
-			const float4 con_o = collected_conic_opacity[j];
+            const float2 xy = collected_xy[j];
+            const float2 d = { xy.x - pixf.x, xy.y - pixf.y };
+            const float4 con_o = collected_conic_opacity[j];
 			const float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
 			if (power > 0.0f)
 				continue;
@@ -695,19 +696,21 @@ renderCUDA(
 			atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG);
 			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
 
-            // check 2x2 matrix will have one 0. unsigned value
-            //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-            //    printf("************************\n");
-            //    printf("%f\n",dL_dconic2D[global_id].x);
-            //    printf("%f\n",dL_dconic2D[global_id].y);
-            //    printf("%f\n",dL_dconic2D[global_id].z);
-            //    printf("%f\n",dL_dconic2D[global_id].w);
-            //    printf("************************\n");
-            //}
-
+			// Store the covariance of each gaussian based on conic2D
+			atomicAdd(&(covariance[global_id]), (con_o.x + con_o.z));
 			// Update gradients w.r.t. opacity of the Gaussian
 			atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
 		}
+        // check 2x2 matrix will have one 0. unsigned value
+        //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+		//	const int global_id = collected_id[0];
+        //    printf("************************\n");
+        //    printf("%f\n",dL_dconic2D[global_id].x);
+        //    printf("%f\n",dL_dconic2D[global_id].y);
+        //    printf("%f\n",dL_dconic2D[global_id].z);
+        //    printf("%f\n",dL_dconic2D[global_id].w);
+        //    printf("************************\n");
+        //}
 	}
 }
 
@@ -803,6 +806,7 @@ void BACKWARD::render(
 	const float* dL_dpixels,
 	float3* dL_dmean2D,
 	float4* dL_dconic2D,
+	float* covariance,
 	float* dL_dopacity,
 	float* dL_dcolors)
 {
@@ -819,6 +823,7 @@ void BACKWARD::render(
 		dL_dpixels,
 		dL_dmean2D,
 		dL_dconic2D,
+		covariance,
 		dL_dopacity,
 		dL_dcolors
 		);
