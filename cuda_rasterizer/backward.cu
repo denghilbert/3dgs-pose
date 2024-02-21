@@ -507,6 +507,11 @@ __global__ void preprocessCUDA(
     dL_dprojmatrix[16 * idx + 7] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
     dL_dprojmatrix[16 * idx + 11] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
     dL_dprojmatrix[16 * idx + 15] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
+    // p2, p6, p10, p14 have the identical gradient to p3 7 11 15
+    dL_dprojmatrix[16 * idx + 2] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 6] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 10] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 14] = ((image_width / 2) * m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + (image_height / 2) * m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 3] = (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 7] = (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 11] = (m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
