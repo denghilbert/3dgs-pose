@@ -106,11 +106,11 @@ class _RasterizeGaussians(torch.autograd.Function):
         ctx.camera_center = camera_center
         ctx.full_proj = full_proj
         ctx.world_view = world_view
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer)
+        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, depth, sh, geomBuffer, binningBuffer, imgBuffer)
         return color, radii, depth
 
     @staticmethod
-    def backward(ctx, grad_out_color, _):
+    def backward(ctx, grad_out_color, _, grad_out_depth):
 
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
@@ -118,7 +118,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         camera_center = ctx.camera_center
         full_proj = ctx.full_proj
         world_view = ctx.world_view
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
+        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, depth, sh, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
