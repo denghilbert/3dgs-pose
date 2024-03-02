@@ -342,7 +342,8 @@ renderCUDA(
 	uint32_t contributor = 0;
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
-    float D = 15.0f;  // Median Depth. wtf? why 15 according to splaTAM
+    //float D = 15.0f;  // Median Depth. wtf? why 15 according to splaTAM
+    float D = 0.0f;  // Average Depth
 
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
@@ -398,12 +399,16 @@ renderCUDA(
 				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
 
 
+            // Mean depth:
+            float dep = collected_depth[j];
+            D += dep * alpha * T;
+
             // find median depth
-            if (T > 0.5f && test_T < 0.5)
-			{
-			    float dep = collected_depth[j];
-				D = dep;
-			}
+            //if (T > 0.5f && test_T < 0.5)
+			//{
+			//    float dep = collected_depth[j];
+			//	D = dep;
+			//}
 
 
 			T = test_T;
