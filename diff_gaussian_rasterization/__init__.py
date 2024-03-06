@@ -138,6 +138,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raster_settings.image_height,
                 raster_settings.image_width,
                 grad_out_color,
+                grad_out_depth,
                 sh,
                 raster_settings.sh_degree,
                 #raster_settings.campos,
