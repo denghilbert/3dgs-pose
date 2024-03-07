@@ -310,7 +310,8 @@ renderCUDA(
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
     const float* __restrict__ depth,
-	float* __restrict__ out_depth)
+	float* __restrict__ out_depth,
+	float* __restrict__ out_alpha)
 {
 	// Identify current tile and associated min/max pixel range.
 	auto block = cg::this_thread_block();
@@ -344,6 +345,7 @@ renderCUDA(
 	float C[CHANNELS] = { 0 };
     //float D = 15.0f;  // Median Depth. wtf? why 15 according to splaTAM
     float D = 0.0f;  // Average Depth
+    float weight = 0.0f; // Weight used for integral (i.e., alpha * T)
 
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
@@ -398,10 +400,11 @@ renderCUDA(
 			for (int ch = 0; ch < CHANNELS; ch++)
 				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
 
+            // Accumulate weights
+            weight += alpha * T;
 
             // Mean depth:
-            float dep = collected_depth[j];
-            D += dep * alpha * T;
+            D += collected_depth[j] * alpha * T;
 
             // find median depth
             //if (T > 0.5f && test_T < 0.5)
@@ -409,7 +412,6 @@ renderCUDA(
 			//    float dep = collected_depth[j];
 			//	D = dep;
 			//}
-
 
 			T = test_T;
 
@@ -428,6 +430,7 @@ renderCUDA(
 		for (int ch = 0; ch < CHANNELS; ch++)
 			out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
         out_depth[pix_id] = D;
+        out_alpha[pix_id] = weight;
 	}
 }
 
@@ -444,7 +447,8 @@ void FORWARD::render(
 	const float* bg_color,
 	float* out_color,
     const float* depth,
-    float* out_depth)
+    float* out_depth,
+    float* out_alpha)
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> > (
 		ranges,
@@ -458,7 +462,8 @@ void FORWARD::render(
 		bg_color,
 		out_color,
         depth,
-        out_depth);
+        out_depth,
+        out_alpha);
 }
 
 void FORWARD::preprocess(int P, int D, int M,

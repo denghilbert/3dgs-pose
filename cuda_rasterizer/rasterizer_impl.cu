@@ -217,6 +217,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const bool prefiltered,
 	float* out_color,
 	float* out_depth,
+	float* out_alpha,
 	int* radii,
 	bool debug)
 {
@@ -333,7 +334,8 @@ int CudaRasterizer::Rasterizer::forward(
 		background,
 		out_color,
         geomState.depths,
-        out_depth), debug)
+        out_depth,
+        out_alpha), debug)
 
 	return num_rendered;
 }
@@ -347,6 +349,7 @@ void CudaRasterizer::Rasterizer::backward(
 	const float* means3D,
 	const float* shs,
 	const float* colors_precomp,
+	const float* alphas,
 	const float* scales,
 	const float scale_modifier,
 	const float* rotations,
@@ -362,6 +365,7 @@ void CudaRasterizer::Rasterizer::backward(
 	char* img_buffer,
 	const float* dL_dpix,
 	const float* dL_dpix_depth,
+	const float* dL_dalpha,
 	float* dL_dmean2D,
 	float* dL_dconic,
 	float* covariance,
@@ -409,10 +413,12 @@ void CudaRasterizer::Rasterizer::backward(
 		geomState.conic_opacity,
 		color_ptr,
 		depth_ptr,
+        alphas,
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		dL_dpix,
 		dL_dpix_depth,
+		dL_dalpha,
 		(float3*)dL_dmean2D,
 		(float4*)dL_dconic,
 		covariance,
