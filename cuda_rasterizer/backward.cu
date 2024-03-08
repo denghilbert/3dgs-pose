@@ -182,7 +182,8 @@ __global__ void computeCov2DCUDA(int P,
 	const float* dL_dconics,
 	float3* dL_dmeans,
 	float* dL_dcov,
-	float* dL_dviewmatrix)
+	float* dL_dviewmatrix,
+    float* dL_ddepths)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
@@ -332,6 +333,9 @@ __global__ void computeCov2DCUDA(int P,
     dL_dviewmatrix[10] = -((view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02) * h_x + (view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * h_y) * mean.z * tz2;
     dL_dviewmatrix[14] = -((view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02) * h_x + (view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * h_y) * tz2;
 
+    dL_dviewmatrix[2] += mean.x * dL_ddepths[idx]
+    dL_dviewmatrix[6] += mean.y * dL_ddepths[idx]
+    dL_dviewmatrix[10] += mean.z * dL_ddepths[idx]
     
 	// Account for transformation of mean to t
 	// t = transformPoint4x3(mean, view_matrix);
@@ -543,14 +547,17 @@ __global__ void preprocessCUDA(
 
 	// Compute loss gradient w.r.t. 3D means due to gradients of depth
 	// from rendering procedure
-	glm::vec3 dL_dmean2;
-	float mul3 = view[2] * m.x + view[6] * m.y + view[10] * m.z + view[14];
-	dL_dmean2.x = (view[2] - view[3] * mul3) * dL_ddepths[idx];
-	dL_dmean2.y = (view[6] - view[7] * mul3) * dL_ddepths[idx];
-	dL_dmean2.z = (view[10] - view[11] * mul3) * dL_ddepths[idx];
+	//glm::vec3 dL_dmean2;
+	//float mul3 = view[2] * m.x + view[6] * m.y + view[10] * m.z + view[14];
+	//dL_dmean2.x = (view[2] - view[3] * mul3) * dL_ddepths[idx];
+	//dL_dmean2.y = (view[6] - view[7] * mul3) * dL_ddepths[idx];
+	//dL_dmean2.z = (view[10] - view[11] * mul3) * dL_ddepths[idx];
+	//// That's the third part of the mean gradient.
+	//dL_dmeans[idx] += dL_dmean2;
+	dL_dmeans[idx].x = view[2] * dL_ddepths[idx];
+	dL_dmeans[idx].y = view[6] * dL_ddepths[idx];
+	dL_dmeans[idx].z = view[10] * dL_ddepths[idx];
 
-	// That's the third part of the mean gradient.
-	dL_dmeans[idx] += dL_dmean2;
 
 	// Compute gradient updates due to computing colors from SHs
 	if (shs)
