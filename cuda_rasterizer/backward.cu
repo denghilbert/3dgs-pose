@@ -333,9 +333,10 @@ __global__ void computeCov2DCUDA(int P,
     dL_dviewmatrix[10] = -((view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02) * h_x + (view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * h_y) * mean.z * tz2;
     dL_dviewmatrix[14] = -((view_matrix[0] * dL_dT00 + view_matrix[1] * dL_dT01 + view_matrix[2] * dL_dT02) * h_x + (view_matrix[4] * dL_dT10 + view_matrix[5] * dL_dT11 + view_matrix[6] * dL_dT12) * h_y) * tz2;
 
-    dL_dviewmatrix[2] += mean.x * dL_ddepths[idx]
-    dL_dviewmatrix[6] += mean.y * dL_ddepths[idx]
-    dL_dviewmatrix[10] += mean.z * dL_ddepths[idx]
+    dL_dviewmatrix[2] += mean.x * dL_ddepths[idx];
+    dL_dviewmatrix[6] += mean.y * dL_ddepths[idx];
+    dL_dviewmatrix[10] += mean.z * dL_ddepths[idx];
+    dL_dviewmatrix[14] += dL_ddepths[idx];
     
 	// Account for transformation of mean to t
 	// t = transformPoint4x3(mean, view_matrix);
@@ -816,7 +817,8 @@ void BACKWARD::preprocess(
 		dL_dconic,
 		(float3*)dL_dmean3D,
 		dL_dcov3D,
-		dL_dviewmatrix);
+		dL_dviewmatrix,
+        dL_ddepths);
 
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
