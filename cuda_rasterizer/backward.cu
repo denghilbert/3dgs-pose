@@ -555,9 +555,9 @@ __global__ void preprocessCUDA(
 	//dL_dmean2.z = (view[10] - view[11] * mul3) * dL_ddepths[idx];
 	//// That's the third part of the mean gradient.
 	//dL_dmeans[idx] += dL_dmean2;
-	dL_dmeans[idx].x = view[2] * dL_ddepths[idx];
-	dL_dmeans[idx].y = view[6] * dL_ddepths[idx];
-	dL_dmeans[idx].z = view[10] * dL_ddepths[idx];
+	dL_dmeans[idx].x += view[2] * dL_ddepths[idx];
+	dL_dmeans[idx].y += view[6] * dL_ddepths[idx];
+	dL_dmeans[idx].z += view[10] * dL_ddepths[idx];
 
 
 	// Compute gradient updates due to computing colors from SHs
