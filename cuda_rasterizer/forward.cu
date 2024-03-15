@@ -202,6 +202,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* colors_precomp,
 	const float* viewmatrix,
 	const float* projmatrix,
+	const float* intrinsic,
 	const glm::vec3* cam_pos,
 	const int W, int H,
 	const float tan_fovx, float tan_fovy,
@@ -232,7 +233,9 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
 	// Transform point by projecting
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
-	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+	//float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+	float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
+	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
 
@@ -478,6 +481,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* colors_precomp,
 	const float* viewmatrix,
 	const float* projmatrix,
+	const float* intrinsic,
 	const glm::vec3* cam_pos,
 	const int W, int H,
 	const float focal_x, float focal_y,
@@ -505,6 +509,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		colors_precomp,
 		viewmatrix, 
 		projmatrix,
+		intrinsic,
 		cam_pos,
 		W, H,
 		tan_fovx, tan_fovy,

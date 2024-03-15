@@ -33,6 +33,7 @@ namespace FORWARD
 		const float* colors_precomp,
 		const float* viewmatrix,
 		const float* projmatrix,
+		const float* intrinsic,
 		const glm::vec3* cam_pos,
 		const int W, int H,
 		const float focal_x, float focal_y,

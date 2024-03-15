@@ -475,6 +475,7 @@ __global__ void preprocessCUDA(
 
 	// Taking care of gradients from the screenspace points
 	float4 m_hom = transformPoint4x4(m, proj);
+	float3 m_cam_coordinate = transformPoint4x3(m, view);
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 
 	// Compute loss gradient w.r.t. 3D means due to gradients of 2D means
@@ -492,37 +493,37 @@ __global__ void preprocessCUDA(
 
     //Compute the loss gradient w.r.t projection matrix 
     // the graident flow back from ux (screen), p0, p4, p8, p12
-    dL_dprojmatrix[16 * idx + 0] = m.x * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 4] = m.y * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 8] = m.z * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 12] = dL_dmean2D[idx].x;
-    //dL_dprojmatrix[16 * idx + 0] = m_w * m.x * dL_dmean2D[idx].x;
-    //dL_dprojmatrix[16 * idx + 4] = m_w * m.y * dL_dmean2D[idx].x;
-    //dL_dprojmatrix[16 * idx + 8] = m_w * m.z * dL_dmean2D[idx].x;
-    //dL_dprojmatrix[16 * idx + 12] = m_w * dL_dmean2D[idx].x;
+    //dL_dprojmatrix[16 * idx + 0] = m.x * dL_dmean2D[idx].x;
+    //dL_dprojmatrix[16 * idx + 4] = m.y * dL_dmean2D[idx].x;
+    //dL_dprojmatrix[16 * idx + 8] = m.z * dL_dmean2D[idx].x;
+    //dL_dprojmatrix[16 * idx + 12] = dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 0] = m_w * m.x * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 4] = m_w * m.y * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 8] = m_w * m.z * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 12] = m_w * dL_dmean2D[idx].x;
     // the graident flow back from uy (screen), p1, p5, p9, p13
-    dL_dprojmatrix[16 * idx + 1] = m.x * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 5] = m.y * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 9] = m.z * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 13] = dL_dmean2D[idx].y;
-    //dL_dprojmatrix[16 * idx + 1] = m_w * m.x * dL_dmean2D[idx].y;
-    //dL_dprojmatrix[16 * idx + 5] = m_w * m.y * dL_dmean2D[idx].y;
-    //dL_dprojmatrix[16 * idx + 9] = m_w * m.z * dL_dmean2D[idx].y;
-    //dL_dprojmatrix[16 * idx + 13] = m_w * dL_dmean2D[idx].y;
+    //dL_dprojmatrix[16 * idx + 1] = m.x * dL_dmean2D[idx].y;
+    //dL_dprojmatrix[16 * idx + 5] = m.y * dL_dmean2D[idx].y;
+    //dL_dprojmatrix[16 * idx + 9] = m.z * dL_dmean2D[idx].y;
+    //dL_dprojmatrix[16 * idx + 13] = dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 1] = m_w * m.x * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 5] = m_w * m.y * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 9] = m_w * m.z * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 13] = m_w * dL_dmean2D[idx].y;
     // the graident flow back from both ux and uy (screen), p3, p7, p11, p15
-    dL_dprojmatrix[16 * idx + 3] = (m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 7] = (m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 11] = (m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 15] = (m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 3] = (m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 7] = (m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 11] = (m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 15] = (m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 3] = (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 7] = (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 11] = (m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 15] = (m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
     // p2, p6, p10, p14 have the identical gradient to p3 7 11 15
-    dL_dprojmatrix[16 * idx + 2] = (m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 6] = (m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 10] = (m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 14] = (m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
-    //dL_dprojmatrix[16 * idx + 3] = (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
-    //dL_dprojmatrix[16 * idx + 7] = (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
-    //dL_dprojmatrix[16 * idx + 11] = (m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
-    //dL_dprojmatrix[16 * idx + 15] = (m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 2] = (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 6] = (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 10] = (m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    //dL_dprojmatrix[16 * idx + 14] = (m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
     // check the gradient
     // also an example to printf value
     //const glm::mat4* test = (glm::mat4*)dL_dprojmatrix;
