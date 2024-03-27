@@ -83,13 +83,13 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 }
 
 // Forward version of 2D covariance matrix computation
-__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix)
+__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix, float3& t)
 {
 	// The following models the steps outlined by equations 29
 	// and 31 in "EWA Splatting" (Zwicker et al., 2002). 
 	// Additionally considers aspect / scaling of viewport.
 	// Transposes used to account for row-/column-major conventions.
-	float3 t = transformPoint4x3(mean, viewmatrix);
+	//float3 t = transformPoint4x3(mean, viewmatrix);
 
 	const float limx = 1.3f * tan_fovx;
 	const float limy = 1.3f * tan_fovy;
@@ -200,6 +200,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	bool* clamped,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
+	const float* displacement_p_w2c,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
@@ -234,7 +235,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// Transform point by projecting
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
 	//float4 p_hom = transformPoint4x4(p_orig, projmatrix);
-	float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
+	//float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
+	float3 p_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
@@ -253,7 +255,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	}
 
 	// Compute 2D screen-space covariance matrix
-	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
+	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix, p_w2c);
 
 	// Invert covariance (EWA algorithm)
 	float det = (cov.x * cov.z - cov.y * cov.y);
@@ -479,6 +481,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	bool* clamped,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
+	const float* displacement_p_w2c,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
@@ -507,6 +510,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		clamped,
 		cov3D_precomp,
 		colors_precomp,
+        displacement_p_w2c,
 		viewmatrix, 
 		projmatrix,
 		intrinsic,

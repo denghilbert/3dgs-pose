@@ -28,6 +28,7 @@ def rasterize_gaussians(
     rotations,
     cov3Ds_precomp,
     raster_settings,
+    displacement_p_w2c,
 ):
     return _RasterizeGaussians.apply(
         means3D,
@@ -38,6 +39,7 @@ def rasterize_gaussians(
         scales,
         rotations,
         cov3Ds_precomp,
+        displacement_p_w2c,
         raster_settings.viewmatrix,
         raster_settings.campos,
         raster_settings.projmatrix,
@@ -56,6 +58,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         scales,
         rotations,
         cov3Ds_precomp,
+        displacement_p_w2c,
         world_view,
         camera_center,
         full_proj,
@@ -67,6 +70,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.bg,
             means3D,
             colors_precomp,
+            displacement_p_w2c,
             opacities,
             scales,
             rotations,
@@ -107,7 +111,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         ctx.camera_center = camera_center
         ctx.full_proj = full_proj
         ctx.world_view = world_view
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights)
+        ctx.save_for_backward(colors_precomp, means3D, displacement_p_w2c, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights)
         return color, radii, depth, weights
 
     @staticmethod
@@ -119,7 +123,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         camera_center = ctx.camera_center
         full_proj = ctx.full_proj
         world_view = ctx.world_view
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights = ctx.saved_tensors
+        colors_precomp, means3D, displacement_p_w2c, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
@@ -192,6 +196,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         #print(sum((covariance != 0) == True))
         #import pdb;pdb.set_trace()
 
+        grad_displacement_p_w2c = torch.zeros(displacement_p_w2c.shape).cuda()
         grads = (
             grad_means3D,
             grad_means2D,
@@ -201,6 +206,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_scales,
             grad_rotations,
             grad_cov3Ds_precomp,
+            grad_displacement_p_w2c,
             grad_world_view,
             grad_camera_center,
             grad_full_proj,
@@ -241,7 +247,7 @@ class GaussianRasterizer(nn.Module):
 
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, displacement_p_w2c=None):
 
         raster_settings = self.raster_settings
 
@@ -274,5 +280,6 @@ class GaussianRasterizer(nn.Module):
             rotations,
             cov3D_precomp,
             raster_settings,
+            displacement_p_w2c,
         )
 

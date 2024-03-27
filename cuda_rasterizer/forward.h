@@ -31,6 +31,7 @@ namespace FORWARD
 		bool* clamped,
 		const float* cov3D_precomp,
 		const float* colors_precomp,
+	    const float* displacement_p_w2c,
 		const float* viewmatrix,
 		const float* projmatrix,
 		const float* intrinsic,
