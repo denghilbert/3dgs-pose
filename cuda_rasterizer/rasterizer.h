@@ -63,6 +63,7 @@ namespace CudaRasterizer
 			const float* means3D,
 			const float* shs,
 			const float* colors_precomp,
+	        const float* displacement_p_w2c,
 			const float* alphas,
 			const float* scales,
 			const float scale_modifier,
@@ -70,6 +71,7 @@ namespace CudaRasterizer
 			const float* cov3D_precomp,
 			const float* viewmatrix,
 			const float* projmatrix,
+	        const float* intrinsic,
 			const float* campos,
 			const float tan_fovx, float tan_fovy,
 	        const int image_height, int image_width,
@@ -93,6 +95,7 @@ namespace CudaRasterizer
 			float* dL_drot,
 			float* dL_dprojmatrix,
 			float* dL_dviewmatrix,
+			float* dL_ddisplacement_p_w2c,
             float* dL_dcampos,
 			bool debug);
 	};

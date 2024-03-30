@@ -55,6 +55,8 @@ namespace BACKWARD
 		const float* cov3Ds,
 		const float* view,
 		const float* proj,
+		const float* intrinsic,
+		const float* displacement_p_w2c,
 		const float focal_x, float focal_y,
 		const float tan_fovx, float tan_fovy,
         const int image_height, int image_width,
@@ -70,6 +72,7 @@ namespace BACKWARD
 		glm::vec4* dL_drot,
 		float* dL_dprojmatrix,
 		float* dL_dviewmatrix,
+		float* dL_ddisplacement_p_w2c,
         float* dL_dcampos);
 }
 

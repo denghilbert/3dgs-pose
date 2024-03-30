@@ -430,6 +430,8 @@ __global__ void preprocessCUDA(
 	const float scale_modifier,
 	const float* view,
 	const float* proj,
+	const float* intrinsic,
+	const float* displacement_p_w2c,
     const int image_height, int image_width,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
@@ -441,6 +443,7 @@ __global__ void preprocessCUDA(
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot,
     float* dL_dprojmatrix,
+    float* dL_ddisplacement_p_w2c,
     glm::vec3* dL_dcampos)
 {
 	auto idx = cg::this_grid().thread_rank();
@@ -475,8 +478,23 @@ __global__ void preprocessCUDA(
 
 	// Taking care of gradients from the screenspace points
 	float4 m_hom = transformPoint4x4(m, proj);
-	float3 m_cam_coordinate = transformPoint4x3(m, view);
+	//float3 m_cam_coordinate = transformPoint4x3(m, view);
+	float3 m_cam_coordinate = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
+
+	// Compute loss gradient w.r.t. 3D means under camera coordinate with displacement due to gradients of 2D means
+    dL_ddisplacement_p_w2c[4 * idx] = dL_dmean2D[idx].x * (image_width / 2) * m_w * intrinsic[0]; 
+    dL_ddisplacement_p_w2c[4 * idx + 1] = dL_dmean2D[idx].y * (image_height / 2) * m_w * intrinsic[5]; 
+    dL_ddisplacement_p_w2c[4 * idx + 2] = dL_dmean2D[idx].x * (image_width / 2) * (-1.) * m_w * m_w * m_hom.x + dL_dmean2D[idx].y * (image_height / 2) * (-1.) * m_w * m_w * m_hom.y; 
+
+    // check intrinsic order
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    for (int i = 0; i < 16; i++) {
+    //        printf("%f\n", intrinsic[i]);
+    //    }
+    //    printf("*********************************\n");
+    //}
 
 	// Compute loss gradient w.r.t. 3D means due to gradients of 2D means
 	// from rendering procedure
@@ -545,7 +563,8 @@ __global__ void preprocessCUDA(
 	dL_dmeans[idx] += dL_dmean;
 
     // the w must be equal to 1 for view^T * [x,y,z,1]
-	float3 m_view = transformPoint4x3(m, view);
+	//float3 m_view = transformPoint4x3(m, view);
+	float3 m_view = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 
 	// Compute loss gradient w.r.t. 3D means due to gradients of depth
 	// from rendering procedure
@@ -784,6 +803,8 @@ void BACKWARD::preprocess(
 	const float* cov3Ds,
 	const float* viewmatrix,
 	const float* projmatrix,
+	const float* intrinsic,
+    const float* displacement_p_w2c,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
     const int image_height, int image_width,
@@ -799,6 +820,7 @@ void BACKWARD::preprocess(
 	glm::vec4* dL_drot,
 	float* dL_dprojmatrix,
 	float* dL_dviewmatrix,
+    float* dL_ddisplacement_p_w2c,
 	float* dL_dcampos)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
@@ -819,7 +841,9 @@ void BACKWARD::preprocess(
 		(float3*)dL_dmean3D,
 		dL_dcov3D,
 		dL_dviewmatrix,
-        dL_ddepths);
+        dL_ddepths,
+        dL_ddisplacement_p_w2c,
+        displacement_p_w2c);
 
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
@@ -840,6 +864,8 @@ void BACKWARD::preprocess(
 		scale_modifier,
         viewmatrix,
 		projmatrix,
+		intrinsic,
+        displacement_p_w2c,
         image_height, image_width,
 		campos,
 		(float3*)dL_dmean2D,
@@ -851,6 +877,7 @@ void BACKWARD::preprocess(
 		dL_dscale,
         dL_drot,
 		dL_dprojmatrix,
+        dL_ddisplacement_p_w2c,
 		(glm::vec3*)dL_dcampos);
 }
 
