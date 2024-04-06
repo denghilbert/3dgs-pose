@@ -54,6 +54,8 @@ namespace CudaRasterizer
 			float* out_depth,
 			float* out_alpha,
 			int* radii = nullptr,
+			float* mean2Dx = nullptr,
+			float* mean2Dy = nullptr,
 			bool debug = false);
 
 		static void backward(

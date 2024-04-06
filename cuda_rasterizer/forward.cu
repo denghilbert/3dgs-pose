@@ -84,6 +84,7 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 
 // Forward version of 2D covariance matrix computation
 __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix, float3& t)
+//__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix)
 {
 	// The following models the steps outlined by equations 29
 	// and 31 in "EWA Splatting" (Zwicker et al., 2002). 
@@ -210,6 +211,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float focal_x, float focal_y,
 	int* radii,
 	float2* points_xy_image,
+	float* means2Dx,
+	float* means2Dy,
 	float* depths,
 	float* cov3Ds,
 	float* rgb,
@@ -256,6 +259,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
 	// Compute 2D screen-space covariance matrix
 	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix, p_w2c);
+	//float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
 
 	// Invert covariance (EWA algorithm)
 	float det = (cov.x * cov.z - cov.y * cov.y);
@@ -293,6 +297,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	depths[idx] = p_view.z;
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
+	means2Dx[idx] = p_proj.x;
+	means2Dy[idx] = p_proj.z;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
@@ -491,6 +497,8 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float tan_fovx, float tan_fovy,
 	int* radii,
 	float2* means2D,
+	float* means2Dx,
+	float* means2Dy,
 	float* depths,
 	float* cov3Ds,
 	float* rgb,
@@ -520,6 +528,8 @@ void FORWARD::preprocess(int P, int D, int M,
 		focal_x, focal_y,
 		radii,
 		means2D,
+		means2Dx,
+		means2Dy,
 		depths,
 		cov3Ds,
 		rgb,

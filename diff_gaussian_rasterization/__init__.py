@@ -103,8 +103,9 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in forward. Please forward snapshot_fw.dump for debugging.")
                 raise ex
         else:
-            num_rendered, color, depth, weights, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
+            num_rendered, color, depth, weights, radii, geomBuffer, binningBuffer, imgBuffer, means2Dx, means2Dy = _C.rasterize_gaussians(*args)
 
+        mean2D = torch.cat((means2Dx, means2Dy), dim=-1)
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered

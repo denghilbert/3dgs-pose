@@ -302,12 +302,12 @@ __global__ void computeCov2DCUDA(int P,
 
 	// Gradients of loss w.r.t. displacement_xyz
     // only has z'
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT00 * intrinsic[0] * view_matrix[0] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT01 * intrinsic[0] * view_matrix[1] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT02 * intrinsic[0] * view_matrix[2] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT10 * intrinsic[5] * view_matrix[4] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT11 * intrinsic[5] * view_matrix[5] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT12 * intrinsic[5] * view_matrix[6] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT00 * intrinsic[0] * view_matrix[0] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT01 * intrinsic[0] * view_matrix[1] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT02 * intrinsic[0] * view_matrix[2] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT10 * intrinsic[5] * view_matrix[4] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT11 * intrinsic[5] * view_matrix[5] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dT12 * intrinsic[5] * view_matrix[6] * (-1.) * displacement_p_w2c[4 * idx + 2]; 
 
 
 	// Gradients of loss w.r.t. upper 3x2 non-zero entries of Jacobian matrix
@@ -495,9 +495,9 @@ __global__ void preprocessCUDA(
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 
 	// Compute loss gradient w.r.t. 3D means under camera coordinate with displacement due to gradients of 2D means
-    dL_ddisplacement_p_w2c[4 * idx] += dL_dmean2D[idx].x * (image_width / 2) * m_w * intrinsic[0]; 
-    dL_ddisplacement_p_w2c[4 * idx + 1] += dL_dmean2D[idx].y * (image_height / 2) * m_w * intrinsic[5]; 
-    dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dmean2D[idx].x * (image_width / 2) * (-1.) * m_w * m_w * m_hom.x + dL_dmean2D[idx].y * (image_height / 2) * (-1.) * m_w * m_w * m_hom.y; 
+    //dL_ddisplacement_p_w2c[4 * idx] += dL_dmean2D[idx].x * (image_width / 2) * m_w * intrinsic[0]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 1] += dL_dmean2D[idx].y * (image_height / 2) * m_w * intrinsic[5]; 
+    //dL_ddisplacement_p_w2c[4 * idx + 2] += dL_dmean2D[idx].x * (image_width / 2) * (-1.) * m_w * m_w * m_hom.x + dL_dmean2D[idx].y * (image_height / 2) * (-1.) * m_w * m_w * m_hom.y; 
 
     // check intrinsic order
     //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
