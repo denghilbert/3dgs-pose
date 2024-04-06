@@ -202,6 +202,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
+	const float* distortion_params,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
@@ -243,6 +244,34 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
+
+    // Apply 2D distortion to p_proj
+    float k1 = distortion_params[0];
+    float k2 = distortion_params[1];
+    float k3 = distortion_params[2];
+    float k4 = distortion_params[3];
+    float k5 = distortion_params[4];
+    float k6 = distortion_params[5];
+    float p1 = distortion_params[6];
+    float p2 = distortion_params[7];
+    
+    float x2 = p_proj.x * p_proj.x;
+    float y2 = p_proj.y * p_proj.y;
+    float r2 = x2 + y2;
+    float _2xy = float(2) * p_proj.x * p_proj.y;
+
+    // The forward distortion fails if the points are too far away on the image plain
+    if (r2 < 2){
+        float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
+        float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
+        float radial   = (radial_u / radial_v);
+
+        float tangentialX = p1 * _2xy + p2 * (r2 + float(2) * x2);
+        float tangentialY = p1 * (r2 + float(2) * y2) + p2 * _2xy;
+
+        p_proj.x = p_proj.x * radial + tangentialX;
+        p_proj.y = p_proj.y * radial + tangentialY;
+    }
 
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
 	// from scaling and rotation parameters. 
@@ -298,7 +327,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
 	means2Dx[idx] = p_proj.x;
-	means2Dy[idx] = p_proj.z;
+	means2Dy[idx] = p_proj.y;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
@@ -488,6 +517,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
+	const float* distortion_params,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
@@ -519,6 +549,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		cov3D_precomp,
 		colors_precomp,
         displacement_p_w2c,
+        distortion_params,
 		viewmatrix, 
 		projmatrix,
 		intrinsic,

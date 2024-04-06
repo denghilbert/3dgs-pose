@@ -185,8 +185,10 @@ __global__ void computeCov2DCUDA(int P,
 	float* dL_dviewmatrix,
     float* dL_ddepths,
     float* dL_ddisplacement_p_w2c,
+    float* dL_ddistortion_params,
 	const float* intrinsic,
-	const float* displacement_p_w2c)
+	const float* displacement_p_w2c,
+	const float* distortion_params)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
@@ -444,6 +446,7 @@ __global__ void preprocessCUDA(
 	const float* proj,
 	const float* intrinsic,
 	const float* displacement_p_w2c,
+	const float* distortion_params,
     const int image_height, int image_width,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
@@ -456,6 +459,7 @@ __global__ void preprocessCUDA(
 	glm::vec4* dL_drot,
     float* dL_dprojmatrix,
     float* dL_ddisplacement_p_w2c,
+    float* dL_ddistortion_params,
     glm::vec3* dL_dcampos)
 {
 	auto idx = cg::this_grid().thread_rank();
@@ -493,6 +497,45 @@ __global__ void preprocessCUDA(
 	//float3 m_cam_coordinate = transformPoint4x3(m, view);
 	float3 m_cam_coordinate = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
+	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
+
+	// Compute loss gradient w.r.t. 8 distortion parameters using dL_dmean2D
+    float k1 = distortion_params[0];
+    float k2 = distortion_params[1];
+    float k3 = distortion_params[2];
+    float k4 = distortion_params[3];
+    float k5 = distortion_params[4];
+    float k6 = distortion_params[5];
+    float p1 = distortion_params[6];
+    float p2 = distortion_params[7];
+    
+    float x2       = p_proj.x * p_proj.x;
+    float y2       = p_proj.y * p_proj.y;
+    float r2       = x2 + y2;
+    float _2xy     = float(2) * p_proj.x * p_proj.y;
+    float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
+    float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
+    // The forward distortion fails if the points are too far away on the image plain
+    if (r2 < 2){
+        // gradient from p_proj.x
+        dL_ddistortion_params[8 * idx]     += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 ) / radial_v;
+        dL_ddistortion_params[8 * idx + 1] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 * r2) / radial_v;
+        dL_ddistortion_params[8 * idx + 2] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 * r2 * r2) / radial_v;
+        dL_ddistortion_params[8 * idx + 3] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2) / (radial_v * radial_v);
+        dL_ddistortion_params[8 * idx + 4] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2 * r2) / (radial_v * radial_v);
+        dL_ddistortion_params[8 * idx + 5] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2 * r2 * r2) / (radial_v * radial_v);
+        dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].x * (image_width / 2) * _2xy;
+        dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].x * (image_width / 2) * (float(2) * x2 + r2);
+        // gradient from p_proj.y
+        dL_ddistortion_params[8 * idx]     += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 ) / radial_v;
+        dL_ddistortion_params[8 * idx + 1] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 * r2) / radial_v;
+        dL_ddistortion_params[8 * idx + 2] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 * r2 * r2) / radial_v;
+        dL_ddistortion_params[8 * idx + 3] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2) / (radial_v * radial_v);
+        dL_ddistortion_params[8 * idx + 4] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2 * r2) / (radial_v * radial_v);
+        dL_ddistortion_params[8 * idx + 5] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2 * r2 * r2) / (radial_v * radial_v);
+        dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].y * (image_height /2) * (float(2) * y2 + r2);
+        dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].y * (image_height /2) * _2xy;
+    }
 
 	// Compute loss gradient w.r.t. 3D means under camera coordinate with displacement due to gradients of 2D means
     //dL_ddisplacement_p_w2c[4 * idx] += dL_dmean2D[idx].x * (image_width / 2) * m_w * intrinsic[0]; 
@@ -817,6 +860,7 @@ void BACKWARD::preprocess(
 	const float* projmatrix,
 	const float* intrinsic,
     const float* displacement_p_w2c,
+    const float* distortion_params,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
     const int image_height, int image_width,
@@ -833,6 +877,7 @@ void BACKWARD::preprocess(
 	float* dL_dprojmatrix,
 	float* dL_dviewmatrix,
     float* dL_ddisplacement_p_w2c,
+    float* dL_ddistortion_params,
 	float* dL_dcampos)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
@@ -855,8 +900,10 @@ void BACKWARD::preprocess(
 		dL_dviewmatrix,
         dL_ddepths,
         dL_ddisplacement_p_w2c,
+        dL_ddistortion_params,
         intrinsic,
-        displacement_p_w2c);
+        displacement_p_w2c,
+        distortion_params);
 
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
@@ -879,6 +926,7 @@ void BACKWARD::preprocess(
 		projmatrix,
 		intrinsic,
         displacement_p_w2c,
+        distortion_params,
         image_height, image_width,
 		campos,
 		(float3*)dL_dmean2D,
@@ -891,6 +939,7 @@ void BACKWARD::preprocess(
         dL_drot,
 		dL_dprojmatrix,
         dL_ddisplacement_p_w2c,
+        dL_ddistortion_params,
 		(glm::vec3*)dL_dcampos);
 }
 

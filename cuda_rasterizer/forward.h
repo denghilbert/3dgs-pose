@@ -32,6 +32,7 @@ namespace FORWARD
 		const float* cov3D_precomp,
 		const float* colors_precomp,
 	    const float* displacement_p_w2c,
+	    const float* distortion_params,
 		const float* viewmatrix,
 		const float* projmatrix,
 		const float* intrinsic,

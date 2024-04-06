@@ -39,6 +39,7 @@ namespace CudaRasterizer
 			const float* shs,
 			const float* colors_precomp,
 			const float* displacement_p_w2c,
+			const float* distortion_params,
 			const float* opacities,
 			const float* scales,
 			const float scale_modifier,
@@ -66,6 +67,7 @@ namespace CudaRasterizer
 			const float* shs,
 			const float* colors_precomp,
 	        const float* displacement_p_w2c,
+	        const float* distortion_params,
 			const float* alphas,
 			const float* scales,
 			const float scale_modifier,
@@ -98,6 +100,7 @@ namespace CudaRasterizer
 			float* dL_dprojmatrix,
 			float* dL_dviewmatrix,
 			float* dL_ddisplacement_p_w2c,
+			float* dL_ddistortion_params,
             float* dL_dcampos,
 			bool debug);
 	};

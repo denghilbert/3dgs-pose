@@ -29,6 +29,7 @@ def rasterize_gaussians(
     cov3Ds_precomp,
     raster_settings,
     displacement_p_w2c,
+    distortion_params,
 ):
     return _RasterizeGaussians.apply(
         means3D,
@@ -40,6 +41,7 @@ def rasterize_gaussians(
         rotations,
         cov3Ds_precomp,
         displacement_p_w2c,
+        distortion_params,
         raster_settings.viewmatrix,
         raster_settings.campos,
         raster_settings.projmatrix,
@@ -59,6 +61,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         rotations,
         cov3Ds_precomp,
         displacement_p_w2c,
+        distortion_params,
         world_view,
         camera_center,
         full_proj,
@@ -71,6 +74,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             means3D,
             colors_precomp,
             displacement_p_w2c,
+            distortion_params,
             opacities,
             scales,
             rotations,
@@ -106,13 +110,14 @@ class _RasterizeGaussians(torch.autograd.Function):
             num_rendered, color, depth, weights, radii, geomBuffer, binningBuffer, imgBuffer, means2Dx, means2Dy = _C.rasterize_gaussians(*args)
 
         mean2D = torch.cat((means2Dx, means2Dy), dim=-1)
+        r2 = means2Dx**2 + means2Dy**2
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
         ctx.camera_center = camera_center
         ctx.full_proj = full_proj
         ctx.world_view = world_view
-        ctx.save_for_backward(colors_precomp, means3D, displacement_p_w2c, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights)
+        ctx.save_for_backward(colors_precomp, means3D, displacement_p_w2c, distortion_params, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights)
         return color, radii, depth, weights
 
     @staticmethod
@@ -124,7 +129,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         camera_center = ctx.camera_center
         full_proj = ctx.full_proj
         world_view = ctx.world_view
-        colors_precomp, means3D, displacement_p_w2c, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights = ctx.saved_tensors
+        colors_precomp, means3D, displacement_p_w2c, distortion_params, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
@@ -141,6 +146,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 full_proj,
                 raster_settings.intrinsic,
                 displacement_p_w2c,
+                distortion_params,
                 raster_settings.tanfovx,
                 raster_settings.tanfovy,
                 raster_settings.image_height,
@@ -169,7 +175,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in backward. Writing snapshot_bw.dump for debugging.\n")
                 raise ex
         else:
-            grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center, grad_full_proj, grad_world_view, covariance, grad_displacement_p_w2c = _C.rasterize_gaussians_backward(*args)
+            grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center, grad_full_proj, grad_world_view, covariance, grad_displacement_p_w2c, grad_distortion_params = _C.rasterize_gaussians_backward(*args)
 
         # remember to set three gradient to 0 if recovering original 3dgs
         #grad_camera_center = torch.zeros(3).cuda()
@@ -209,6 +215,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_rotations,
             grad_cov3Ds_precomp,
             grad_displacement_p_w2c,
+            grad_distortion_params,
             grad_world_view,
             grad_camera_center,
             grad_full_proj,
@@ -249,7 +256,7 @@ class GaussianRasterizer(nn.Module):
 
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, displacement_p_w2c=None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, displacement_p_w2c=None, distortion_params=None):
 
         raster_settings = self.raster_settings
 
@@ -283,5 +290,6 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp,
             raster_settings,
             displacement_p_w2c,
+            distortion_params,
         )
 

@@ -38,6 +38,7 @@ RasterizeGaussiansCUDA(
 	const torch::Tensor& means3D,
     const torch::Tensor& colors,
     const torch::Tensor& displacement_p_w2c,
+    const torch::Tensor& distortion_params,
     const torch::Tensor& opacity,
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
@@ -103,6 +104,7 @@ RasterizeGaussiansCUDA(
 		sh.contiguous().data_ptr<float>(),
 		colors.contiguous().data<float>(), 
 		displacement_p_w2c.contiguous().data<float>(), 
+		distortion_params.contiguous().data<float>(), 
 		opacity.contiguous().data<float>(), 
 		scales.contiguous().data_ptr<float>(),
 		scale_modifier,
@@ -126,7 +128,7 @@ RasterizeGaussiansCUDA(
   return std::make_tuple(rendered, out_color, out_depth, out_alpha, radii, geomBuffer, binningBuffer, imgBuffer, means2Dx, means2Dy);
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
  	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -140,6 +142,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
     const torch::Tensor& projmatrix,
 	const torch::Tensor& intrinsic,
     const torch::Tensor& displacement_p_w2c,
+    const torch::Tensor& distortion_params,
 	const float tan_fovx,
 	const float tan_fovy,
 	const int image_height,
@@ -182,6 +185,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dviewmatrix = torch::zeros({P, 16}, means3D.options());
   torch::Tensor dL_dcampos = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_ddisplacement_p_w2c = torch::zeros({P, 4}, means3D.options());
+  torch::Tensor dL_ddistortion_params = torch::zeros({P, 8}, means3D.options());
   
   //float data[] = { 1, 2, 3,
   //               4, 5, 6 };
@@ -212,6 +216,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  sh.contiguous().data<float>(),
 	  colors.contiguous().data<float>(),
 	  displacement_p_w2c.contiguous().data<float>(), 
+	  distortion_params.contiguous().data<float>(), 
 	  alphas.contiguous().data<float>(),
 	  scales.data_ptr<float>(),
 	  scale_modifier,
@@ -246,6 +251,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  dL_dprojmatrix.contiguous().data<float>(),
 	  dL_dviewmatrix.contiguous().data<float>(),
 	  dL_ddisplacement_p_w2c.contiguous().data<float>(),
+	  dL_ddistortion_params.contiguous().data<float>(),
 	  dL_dcampos.contiguous().data<float>(),
 	  debug);
 
@@ -270,7 +276,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   //std::cout << (covariance / covariance.sum())[0];
   //std::cout << (dL_dviewmatrix * (covariance / covariance.sum()))[0];
   //return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, (dL_dcampos * (covariance / covariance.sum())).sum(0), (dL_dprojmatrix * (covariance / covariance.sum())).sum(0), (dL_dviewmatrix * (covariance / covariance.sum())).sum(0), covariance + 1e-4f);
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0), covariance + 1e-4f, dL_ddisplacement_p_w2c);
+  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0), covariance + 1e-4f, dL_ddisplacement_p_w2c, dL_ddistortion_params.mean(0));
   //return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, (dL_dcampos * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), (dL_dprojmatrix * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), (dL_dviewmatrix * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), covariance);
 }
 

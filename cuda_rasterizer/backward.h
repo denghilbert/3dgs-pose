@@ -57,6 +57,7 @@ namespace BACKWARD
 		const float* proj,
 		const float* intrinsic,
 		const float* displacement_p_w2c,
+		const float* distortion_params,
 		const float focal_x, float focal_y,
 		const float tan_fovx, float tan_fovy,
         const int image_height, int image_width,
@@ -73,6 +74,7 @@ namespace BACKWARD
 		float* dL_dprojmatrix,
 		float* dL_dviewmatrix,
 		float* dL_ddisplacement_p_w2c,
+		float* dL_ddistortion_params,
         float* dL_dcampos);
 }
 

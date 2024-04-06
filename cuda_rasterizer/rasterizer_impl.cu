@@ -206,6 +206,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* shs,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
+	const float* distortion_params,
 	const float* opacities,
 	const float* scales,
 	const float scale_modifier,
@@ -263,6 +264,7 @@ int CudaRasterizer::Rasterizer::forward(
 		cov3D_precomp,
 		colors_precomp,
 		displacement_p_w2c,
+		distortion_params,
 		viewmatrix, projmatrix,
         intrinsic,
 		(glm::vec3*)cam_pos,
@@ -358,6 +360,7 @@ void CudaRasterizer::Rasterizer::backward(
 	const float* shs,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
+	const float* distortion_params,
 	const float* alphas,
 	const float* scales,
 	const float scale_modifier,
@@ -390,6 +393,7 @@ void CudaRasterizer::Rasterizer::backward(
 	float* dL_dprojmatrix,
 	float* dL_dviewmatrix,
 	float* dL_ddisplacement_p_w2c,
+	float* dL_ddistortion_params,
     float* dL_dcampos,
 	bool debug)
 {
@@ -454,6 +458,7 @@ void CudaRasterizer::Rasterizer::backward(
 		projmatrix,
 		intrinsic,
         displacement_p_w2c,
+        distortion_params,
 		focal_x, focal_y,
 		tan_fovx, tan_fovy,
         image_height, image_width,
@@ -470,6 +475,7 @@ void CudaRasterizer::Rasterizer::backward(
         dL_dprojmatrix,
         dL_dviewmatrix,
         dL_ddisplacement_p_w2c,
+        dL_ddistortion_params,
         dL_dcampos), debug)
 
 }
