@@ -184,11 +184,7 @@ __global__ void computeCov2DCUDA(int P,
 	float* dL_dcov,
 	float* dL_dviewmatrix,
     float* dL_ddepths,
-    float* dL_ddisplacement_p_w2c,
-    float* dL_ddistortion_params,
-	const float* intrinsic,
-	const float* displacement_p_w2c,
-	const float* distortion_params)
+	const float* intrinsic)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
@@ -429,6 +425,25 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 	*dL_drot = float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w };//dnormvdv(float4{ rot.x, rot.y, rot.z, rot.w }, float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w });
 }
 
+
+// Weights of four corners used in Bilinear Interpolation
+__device__ float4 bilinearInterpolateWeights(int x, int y, float xp, float yp)
+{
+    // Assuming u and v are arrays containing the u and v displacements for the corners
+    // u[0], v[0] for (x, y)
+    // u[1], v[1] for (x+1, y)
+    // u[2], v[2] for (x, y+1)
+    // u[3], v[3] for (x+1, y+1)
+
+    // Compute bilinear coefficients
+    float A = (x + 1 - xp) * (y + 1 - yp);
+    float B = (xp - x) * (y + 1 - yp);
+    float C = (x + 1 - xp) * (yp - y);
+    float D = (xp - x) * (yp - y);
+
+	return {A, B, C, D};
+}
+
 // Backward pass of the preprocessing steps, except
 // for the covariance computation and inversion
 // (those are handled by a previous kernel call)
@@ -447,6 +462,7 @@ __global__ void preprocessCUDA(
 	const float* intrinsic,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const int res_u, int res_v,
     const int image_height, int image_width,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
@@ -460,6 +476,10 @@ __global__ void preprocessCUDA(
     float* dL_dprojmatrix,
     float* dL_ddisplacement_p_w2c,
     float* dL_ddistortion_params,
+	float* dL_du_distortion,
+	float* dL_dv_distortion,
+	float* dL_du_radial,
+	float* dL_dv_radial,
     glm::vec3* dL_dcampos)
 {
 	auto idx = cg::this_grid().thread_rank();
@@ -498,6 +518,50 @@ __global__ void preprocessCUDA(
 	float3 m_cam_coordinate = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
+
+    int u_idx = int((p_proj.x + 1) * (res_u / 2));
+    int v_idx = int((p_proj.y + 1) * (res_v / 2));
+    float4 ABCD;
+
+    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+        ABCD = bilinearInterpolateWeights(u_idx, v_idx, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+
+        //// check ABCD
+        //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+        //    printf("*********************************\n");
+        //    printf("%f\n", ABCD.x);
+        //    printf("%f\n", ABCD.y);
+        //    printf("%f\n", ABCD.z);
+        //    printf("%f\n", ABCD.w);
+        //    printf("*********************************\n");
+        //}
+
+        // Partial derivative of loss w.r.t. u_distortion and v_distortion
+        // Gradient in u direction
+        dL_du_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * ABCD.x;
+        dL_du_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * ABCD.y;
+        dL_du_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * ABCD.z;
+        dL_du_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * ABCD.w;
+
+        // Gradient in v direction
+        dL_dv_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * ABCD.x;
+        dL_dv_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * ABCD.y;
+        dL_dv_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z;
+        dL_dv_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w;
+
+        // Partial derivative of loss w.r.t. u_radial and v_radial
+        // Gradient in u direction
+        dL_du_radial[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * ABCD.x * p_proj.x;
+        dL_du_radial[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * ABCD.y * p_proj.x;
+        dL_du_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * ABCD.z * p_proj.x;
+        dL_du_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * ABCD.w * p_proj.x;
+
+        // Gradient in v direction
+        dL_dv_radial[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * ABCD.x * p_proj.y;
+        dL_dv_radial[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * ABCD.y * p_proj.y;
+        dL_dv_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z * p_proj.y;
+        dL_dv_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w * p_proj.y;
+    }
 
 	// Compute loss gradient w.r.t. 8 distortion parameters using dL_dmean2D
     float k1 = distortion_params[0];
@@ -861,6 +925,7 @@ void BACKWARD::preprocess(
 	const float* intrinsic,
     const float* displacement_p_w2c,
     const float* distortion_params,
+	const int res_u, int res_v,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
     const int image_height, int image_width,
@@ -878,6 +943,10 @@ void BACKWARD::preprocess(
 	float* dL_dviewmatrix,
     float* dL_ddisplacement_p_w2c,
     float* dL_ddistortion_params,
+	float* dL_du_distortion,
+	float* dL_dv_distortion,
+	float* dL_du_radial,
+	float* dL_dv_radial,
 	float* dL_dcampos)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
@@ -899,11 +968,7 @@ void BACKWARD::preprocess(
 		dL_dcov3D,
 		dL_dviewmatrix,
         dL_ddepths,
-        dL_ddisplacement_p_w2c,
-        dL_ddistortion_params,
-        intrinsic,
-        displacement_p_w2c,
-        distortion_params);
+        intrinsic);
 
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
@@ -927,6 +992,7 @@ void BACKWARD::preprocess(
 		intrinsic,
         displacement_p_w2c,
         distortion_params,
+        res_u, res_v,
         image_height, image_width,
 		campos,
 		(float3*)dL_dmean2D,
@@ -940,6 +1006,10 @@ void BACKWARD::preprocess(
 		dL_dprojmatrix,
         dL_ddisplacement_p_w2c,
         dL_ddistortion_params,
+	    dL_du_distortion,
+	    dL_dv_distortion,
+	    dL_du_radial,
+	    dL_dv_radial,
 		(glm::vec3*)dL_dcampos);
 }
 

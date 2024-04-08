@@ -22,6 +22,10 @@ RasterizeGaussiansCUDA(
     const torch::Tensor& colors,
     const torch::Tensor& displacement_p_w2c,
     const torch::Tensor& distortion_params,
+    const torch::Tensor& u_distortion,
+    const torch::Tensor& v_distortion,
+    const torch::Tensor& u_radial,
+    const torch::Tensor& v_radial,
     const torch::Tensor& opacity,
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
@@ -40,7 +44,7 @@ RasterizeGaussiansCUDA(
 	const bool prefiltered,
 	const bool debug);
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
  	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -55,6 +59,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
     const torch::Tensor& intrinsic,
     const torch::Tensor& displacement_p_w2c,
     const torch::Tensor& distortion_params,
+	const int res_u,
+	const int res_v,
 	const float tan_fovx, 
 	const float tan_fovy,
 	const int image_height,

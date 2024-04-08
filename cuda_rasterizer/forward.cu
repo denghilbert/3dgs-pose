@@ -189,6 +189,47 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 	cov3D[5] = Sigma[2][2];
 }
 
+// Bilinear Interpolation for displacement
+__device__ float2 bilinearInterpolateKernel(int x, int y, const int res_u, const float* u_distortion, const float* v_distortion, float xp, float yp)
+{
+    // Assuming u and v are arrays containing the u and v displacements for the corners
+    // u[0], v[0] for (x, y)
+    // u[1], v[1] for (x+1, y)
+    // u[2], v[2] for (x, y+1)
+    // u[3], v[3] for (x+1, y+1)
+
+    // Compute bilinear coefficients
+    float A = (x + 1 - xp) * (y + 1 - yp);
+    float B = (xp - x) * (y + 1 - yp);
+    float C = (x + 1 - xp) * (yp - y);
+    float D = (xp - x) * (yp - y);
+
+    // Interpolate u
+    float up = A * u_distortion[x + y * res_u] + B * u_distortion[x + 1 + y * res_u] + C * u_distortion[x + (y + 1) * res_u] + D * u_distortion[x + 1 + (y + 1) * res_u];
+
+    // Interpolate v
+    float vp = A * v_distortion[x + y * res_u] + B * v_distortion[x + 1 + y * res_u] + C * v_distortion[x + (y + 1) * res_u] + D * v_distortion[x + 1 + (y + 1) * res_u];
+
+    // check interpolation weights
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("%d\n", x);
+    //    printf("%d\n", y);
+    //    printf("%f\n", xp);
+    //    printf("%f\n", yp);
+    //    printf("%f\n", A);
+    //    printf("%f\n", B);
+    //    printf("%f\n", C);
+    //    printf("%f\n", D);
+    //    printf("%f\n", A + B + C + D);
+    //    printf("%f\n", up);
+    //    printf("%f\n", vp);
+    //    printf("*********************************\n");
+    //}
+
+	return {up, vp};
+}
+
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
 __global__ void preprocessCUDA(int P, int D, int M,
@@ -203,11 +244,16 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const float* u_distortion,
+	const float* v_distortion,
+	const float* u_radial,
+	const float* v_radial,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
 	const glm::vec3* cam_pos,
 	const int W, int H,
+	const int res_u, int res_v,
 	const float tan_fovx, float tan_fovy,
 	const float focal_x, float focal_y,
 	int* radii,
@@ -244,6 +290,43 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
+
+    /////////////////////////////////////////////////////////////////////
+    // pay a special attention to u_distortion index
+    // u_distortion[u, v] represents the displacement at (u, v)
+    // the index should be v * W + u
+    /////////////////////////////////////////////////////////////////////
+    int u_idx = int((p_proj.x + 1) * (res_u / 2));
+    int v_idx = int((p_proj.y + 1) * (res_v / 2));
+    float2 uv_displacement;
+    float2 uv_radial;
+    
+    if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 2) {
+        uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+        uv_radial = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_radial, v_radial, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+    }
+    
+    p_proj.x = p_proj.x * uv_radial.x + uv_displacement.x;
+    p_proj.y = p_proj.y * uv_radial.y + uv_displacement.y;
+
+    // check bilinear interpolation position
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("%f\n", p_proj.x);
+    //    printf("%f\n", p_proj.y);
+    //    printf("%f\n", (p_proj.x + 1) * 100);
+    //    printf("%f\n", (p_proj.y + 1) * 100);
+    //    printf("%d\n", u_idx);
+    //    printf("%d\n", v_idx);
+    //    printf("%d\n", res_u);
+    //    printf("%d\n", res_v);
+    //    printf("%f\n", u_distortion[0]);
+    //    printf("%f\n", u_distortion[1]);
+    //    printf("%f\n", u_distortion[u_idx + v_idx * res_u]);
+    //    printf("%d\n", (u_idx + v_idx * res_u));
+    //    printf("*********************************\n");
+    //}
+
 
     // Apply 2D distortion to p_proj
     float k1 = distortion_params[0];
@@ -518,11 +601,16 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const float* u_distortion,
+	const float* v_distortion,
+	const float* u_radial,
+	const float* v_radial,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
 	const glm::vec3* cam_pos,
 	const int W, int H,
+	const int res_u, int res_v,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
 	int* radii,
@@ -550,11 +638,16 @@ void FORWARD::preprocess(int P, int D, int M,
 		colors_precomp,
         displacement_p_w2c,
         distortion_params,
+	    u_distortion,
+	    v_distortion,
+	    u_radial,
+	    v_radial,
 		viewmatrix, 
 		projmatrix,
 		intrinsic,
 		cam_pos,
 		W, H,
+	    res_u, res_v,
 		tan_fovx, tan_fovy,
 		focal_x, focal_y,
 		radii,
