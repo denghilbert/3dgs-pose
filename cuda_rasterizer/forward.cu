@@ -301,7 +301,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
     float2 uv_displacement;
     float2 uv_radial;
     
-    if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 2) {
+    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
         uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
         uv_radial = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_radial, v_radial, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
     }
