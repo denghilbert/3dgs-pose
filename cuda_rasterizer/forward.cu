@@ -230,6 +230,35 @@ __device__ float2 bilinearInterpolateKernel(int x, int y, const int res_u, const
 	return {up, vp};
 }
 
+
+// Omnidirectional camera distortion
+__device__ float3 omnidirectionalDistortion(float2 ab, float z, const float* affine_coeff, const float* poly_coeff) {
+    float inv_norm = 1 / sqrt(ab.x * ab.x + ab.y * ab.y);
+    float theta    = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    float rho      = poly_coeff[0] + poly_coeff[1] * theta + poly_coeff[2] * theta * theta;
+
+    float e  = affine_coeff[1];
+    float d  = affine_coeff[2];
+    float c  = affine_coeff[3];
+    float cx = affine_coeff[4];
+    float cy = affine_coeff[5];
+
+    float dist_x =     ab.x * rho + e * ab.y * rho + cx;
+    float dist_y = d * ab.x * rho + c * ab.y * rho + cy;
+    
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("%f\n", e);
+    //    printf("%f\n", d);
+    //    printf("%f\n", c);
+    //    printf("%f\n", cx);
+    //    printf("%f\n", cy);
+    //    printf("*********************************\n");
+    //}
+    return {dist_x * z, dist_y * z, z};
+    //return {ab.x * z, ab.y * z, z};
+}
+
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
 __global__ void preprocessCUDA(int P, int D, int M,
@@ -244,6 +273,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const float* affine_coeff,
+	const float* poly_coeff,
 	const float* u_distortion,
 	const float* v_distortion,
 	const float* u_radial,
@@ -287,9 +318,39 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	//float4 p_hom = transformPoint4x4(p_orig, projmatrix);
 	//float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
 	float3 p_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
+
+    /////////////////////////////////////////////////////////////////////
+    // implementation of omnidirectional camera model distortion
+    // originally, gs first apply intrinsic (K) to p_w2c and use p_proj to get [x'/z', y'/z']
+    // in omnidirectional camera, we first get [x/z, y/z] and then apply intrisic
+    // Both are the same!
+    /////////////////////////////////////////////////////////////////////
+    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
+    
+
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
+    
+    // A test for x/z and y/z before or after intrinsic
+    //float3 test = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z, 1};
+	//float4 test_hom = transformPoint4x4(test, intrinsic);
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("%f\n", test_hom.x);
+    //    printf("%f\n", test_hom.y);
+    //    printf("%f\n", test_hom.z);
+    //    printf("%f\n", test_hom.w);
+    //    printf("*********************************\n");
+    //}
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("%f\n", p_proj.x);
+    //    printf("%f\n", p_proj.y);
+    //    printf("%f\n", p_proj.z);
+    //    printf("*********************************\n");
+    //}
 
     /////////////////////////////////////////////////////////////////////
     // pay a special attention to u_distortion index
@@ -409,8 +470,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	depths[idx] = p_view.z;
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
-	means2Dx[idx] = p_proj.x;
-	means2Dy[idx] = p_proj.y;
+	means2Dx[idx] = p_hom.z;
+	means2Dy[idx] = p_hom.w;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
@@ -601,6 +662,8 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const float* affine_coeff,
+	const float* poly_coeff,
 	const float* u_distortion,
 	const float* v_distortion,
 	const float* u_radial,
@@ -638,6 +701,8 @@ void FORWARD::preprocess(int P, int D, int M,
 		colors_precomp,
         displacement_p_w2c,
         distortion_params,
+        affine_coeff, 
+        poly_coeff,
 	    u_distortion,
 	    v_distortion,
 	    u_radial,

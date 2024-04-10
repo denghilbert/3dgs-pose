@@ -33,6 +33,8 @@ namespace FORWARD
 		const float* colors_precomp,
 	    const float* displacement_p_w2c,
 	    const float* distortion_params,
+        const float* affine_coeff,
+        const float* poly_coeff,
         const float* u_distortion,
         const float* v_distortion,
         const float* u_radial,
