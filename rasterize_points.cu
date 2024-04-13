@@ -211,7 +211,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_du_radial = torch::zeros({res_v, res_u}, means3D.options());
   torch::Tensor dL_dv_radial = torch::zeros({res_v, res_u}, means3D.options());
   torch::Tensor dL_daffine = torch::zeros({P, 6}, means3D.options());
-  torch::Tensor dL_dpoly = torch::zeros({P, 3}, means3D.options());
+  torch::Tensor dL_dpoly = torch::zeros({P, 4}, means3D.options());
   
   //float data[] = { 1, 2, 3,
   //               4, 5, 6 };
@@ -244,6 +244,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  colors.contiguous().data<float>(),
 	  displacement_p_w2c.contiguous().data<float>(), 
 	  distortion_params.contiguous().data<float>(), 
+	  affine_coeff.contiguous().data<float>(), 
+	  poly_coeff.contiguous().data<float>(), 
 	  alphas.contiguous().data<float>(),
 	  scales.data_ptr<float>(),
 	  scale_modifier,
@@ -279,6 +281,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  dL_dviewmatrix.contiguous().data<float>(),
 	  dL_ddisplacement_p_w2c.contiguous().data<float>(),
 	  dL_ddistortion_params.contiguous().data<float>(),
+	  dL_daffine.contiguous().data<float>(),
+	  dL_dpoly.contiguous().data<float>(),
 	  dL_du_distortion.contiguous().data<float>(),
 	  dL_dv_distortion.contiguous().data<float>(),
 	  dL_du_radial.contiguous().data<float>(),

@@ -462,6 +462,8 @@ __global__ void preprocessCUDA(
 	const float* intrinsic,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const float* affine_coeff,
+	const float* poly_coeff,
 	const int res_u, int res_v,
     const int image_height, int image_width,
 	const glm::vec3* campos,
@@ -476,6 +478,8 @@ __global__ void preprocessCUDA(
     float* dL_dprojmatrix,
     float* dL_ddisplacement_p_w2c,
     float* dL_ddistortion_params,
+    float* dL_daffine,
+    float* dL_dpoly,
 	float* dL_du_distortion,
 	float* dL_dv_distortion,
 	float* dL_du_radial,
@@ -518,6 +522,21 @@ __global__ void preprocessCUDA(
 	float3 m_cam_coordinate = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
+
+    float inv_r  = 1 / sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y);
+    float theta  = atan(sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y));
+    float theta2 = theta * theta;
+    float theta3 = theta * theta2;
+    float theta5 = theta3 * theta2;
+    float theta7 = theta5 * theta2;
+    float theta9 = theta7 * theta2;
+
+    if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 2){
+        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta3 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta3);
+        dL_dpoly[4 * idx + 1] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta5 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta5);
+        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta7);
+        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta9);
+    }
 
     int u_idx = int((p_proj.x + 1) * (res_u / 2));
     int v_idx = int((p_proj.y + 1) * (res_v / 2));
@@ -925,6 +944,8 @@ void BACKWARD::preprocess(
 	const float* intrinsic,
     const float* displacement_p_w2c,
     const float* distortion_params,
+    const float* affine_coeff,
+    const float* poly_coeff,
 	const int res_u, int res_v,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
@@ -943,6 +964,8 @@ void BACKWARD::preprocess(
 	float* dL_dviewmatrix,
     float* dL_ddisplacement_p_w2c,
     float* dL_ddistortion_params,
+    float* dL_daffine,
+    float* dL_dpoly,
 	float* dL_du_distortion,
 	float* dL_dv_distortion,
 	float* dL_du_radial,
@@ -992,6 +1015,8 @@ void BACKWARD::preprocess(
 		intrinsic,
         displacement_p_w2c,
         distortion_params,
+        affine_coeff, 
+        poly_coeff,
         res_u, res_v,
         image_height, image_width,
 		campos,
@@ -1006,6 +1031,8 @@ void BACKWARD::preprocess(
 		dL_dprojmatrix,
         dL_ddisplacement_p_w2c,
         dL_ddistortion_params,
+        dL_daffine,
+        dL_dpoly,
 	    dL_du_distortion,
 	    dL_dv_distortion,
 	    dL_du_radial,

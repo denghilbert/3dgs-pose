@@ -232,6 +232,29 @@ __device__ float2 bilinearInterpolateKernel(int x, int y, const int res_u, const
 
 
 // Omnidirectional camera distortion
+__device__ float3 omnidirectionalDistortion_OPENCV(float2 ab, float z, const float* affine_coeff, const float* poly_coeff) {
+    float inv_r    = 1 / sqrt(ab.x * ab.x + ab.y * ab.y);
+    float theta    = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    float theta2   = theta * theta;
+    float theta4   = theta2 * theta2;
+    float theta6   = theta4 * theta2;
+    float theta8   = theta4 * theta4;
+    float rho      = theta * (1 + poly_coeff[0] * theta2 + poly_coeff[1] * theta4 + poly_coeff[2] * theta6 + poly_coeff[3] * theta8);
+
+    //float e  = affine_coeff[1];
+    //float d  = affine_coeff[2];
+    //float c  = affine_coeff[3];
+    //float cx = affine_coeff[4];
+    //float cy = affine_coeff[5];
+
+    //float dist_x =     ab.x * rho + e * ab.y * rho + cx;
+    //float dist_y = d * ab.x * rho + c * ab.y * rho + cy;
+    
+    return {rho * inv_r * ab.x * z, rho * inv_r * ab.y * z, z};
+    //return {ab.x * z, ab.y * z, z};
+}
+
+// Omnidirectional camera distortion
 __device__ float3 omnidirectionalDistortion(float2 ab, float z, const float* affine_coeff, const float* poly_coeff) {
     float inv_norm = 1 / sqrt(ab.x * ab.x + ab.y * ab.y);
     float theta    = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
@@ -326,7 +349,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // Both are the same!
     /////////////////////////////////////////////////////////////////////
     float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
+    //p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
+    //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     
 
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
