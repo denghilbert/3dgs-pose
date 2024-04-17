@@ -282,6 +282,7 @@ __device__ float3 omnidirectionalDistortion(float2 ab, float z, const float* aff
     //return {ab.x * z, ab.y * z, z};
 }
 
+
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
 __global__ void preprocessCUDA(int P, int D, int M,
@@ -302,6 +303,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* v_distortion,
 	const float* u_radial,
 	const float* v_radial,
+	const float* radial,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
@@ -342,15 +344,28 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	//float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
 	float3 p_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 
-    /////////////////////////////////////////////////////////////////////
+    // forward of omnidirectional camera model
+    //---------------------------------------------------------------//
     // implementation of omnidirectional camera model distortion
     // originally, gs first apply intrinsic (K) to p_w2c and use p_proj to get [x'/z', y'/z']
     // in omnidirectional camera, we first get [x/z, y/z] and then apply intrisic
     // Both are the same!
-    /////////////////////////////////////////////////////////////////////
     float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
     //p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
     //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
+    //---------------------------------------------------------------//
+
+
+    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    int x1 = int((theta / 1.57079632679) * 1000);
+    int x_2 = int((theta / 1.57079632679) * 1000) + 1;
+    float x = (theta / 1.57079632679) * 1000;
+    if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
+        float y1 = radial[x1];
+        float y_2 = radial[x_2];
+        p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+        p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+    }
     
 
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
@@ -376,11 +391,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
     //    printf("*********************************\n");
     //}
 
-    /////////////////////////////////////////////////////////////////////
+    // backward of grid
+    //---------------------------------------------------------------//
     // pay a special attention to u_distortion index
     // u_distortion[u, v] represents the displacement at (u, v)
     // the index should be v * W + u
-    /////////////////////////////////////////////////////////////////////
     int u_idx = int((p_proj.x + 1) * (res_u / 2));
     int v_idx = int((p_proj.y + 1) * (res_v / 2));
     float2 uv_displacement;
@@ -411,8 +426,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
     //    printf("%d\n", (u_idx + v_idx * res_u));
     //    printf("*********************************\n");
     //}
+    //---------------------------------------------------------------//
 
 
+	// forward of 8 params distortion
+    //---------------------------------------------------------------//
     // Apply 2D distortion to p_proj
     float k1 = distortion_params[0];
     float k2 = distortion_params[1];
@@ -440,6 +458,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
         p_proj.x = p_proj.x * radial + tangentialX;
         p_proj.y = p_proj.y * radial + tangentialY;
     }
+    //---------------------------------------------------------------//
 
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
 	// from scaling and rotation parameters. 
@@ -692,6 +711,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* v_distortion,
 	const float* u_radial,
 	const float* v_radial,
+	const float* radial,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
@@ -731,6 +751,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	    v_distortion,
 	    u_radial,
 	    v_radial,
+        radial,
 		viewmatrix, 
 		projmatrix,
 		intrinsic,

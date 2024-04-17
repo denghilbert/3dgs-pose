@@ -45,6 +45,7 @@ RasterizeGaussiansCUDA(
     const torch::Tensor& v_radial,
     const torch::Tensor& affine_coeff,
     const torch::Tensor& poly_coeff,
+    const torch::Tensor& radial,
     const torch::Tensor& opacity,
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
@@ -121,6 +122,7 @@ RasterizeGaussiansCUDA(
 		v_distortion.contiguous().data<float>(), 
 		u_radial.contiguous().data<float>(), 
 		v_radial.contiguous().data<float>(), 
+		radial.contiguous().data<float>(), 
 		opacity.contiguous().data<float>(), 
 		scales.contiguous().data_ptr<float>(),
 		scale_modifier,
@@ -144,7 +146,7 @@ RasterizeGaussiansCUDA(
   return std::make_tuple(rendered, out_color, out_depth, out_alpha, radii, geomBuffer, binningBuffer, imgBuffer, means2Dx, means2Dy);
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
  	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -212,6 +214,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dv_radial = torch::zeros({res_v, res_u}, means3D.options());
   torch::Tensor dL_daffine = torch::zeros({P, 6}, means3D.options());
   torch::Tensor dL_dpoly = torch::zeros({P, 4}, means3D.options());
+  torch::Tensor dL_dradial = torch::zeros({1000}, means3D.options());
   
   //float data[] = { 1, 2, 3,
   //               4, 5, 6 };
@@ -287,6 +290,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  dL_dv_distortion.contiguous().data<float>(),
 	  dL_du_radial.contiguous().data<float>(),
 	  dL_dv_radial.contiguous().data<float>(),
+	  dL_dradial.contiguous().data<float>(),
 	  dL_dcampos.contiguous().data<float>(),
 	  debug);
 
@@ -311,7 +315,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   //std::cout << (covariance / covariance.sum())[0];
   //std::cout << (dL_dviewmatrix * (covariance / covariance.sum()))[0];
   //return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, (dL_dcampos * (covariance / covariance.sum())).sum(0), (dL_dprojmatrix * (covariance / covariance.sum())).sum(0), (dL_dviewmatrix * (covariance / covariance.sum())).sum(0), covariance + 1e-4f);
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0), covariance + 1e-4f, dL_ddisplacement_p_w2c, dL_ddistortion_params.mean(0), dL_du_distortion, dL_dv_distortion, dL_du_radial, dL_dv_radial, dL_daffine.mean(0), dL_dpoly.mean(0));
+  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0), covariance + 1e-4f, dL_ddisplacement_p_w2c, dL_ddistortion_params.mean(0), dL_du_distortion, dL_dv_distortion, dL_du_radial, dL_dv_radial, dL_daffine.mean(0), dL_dpoly.mean(0), dL_dradial);
   //return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, (dL_dcampos * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), (dL_dprojmatrix * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), (dL_dviewmatrix * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), covariance);
 }
 

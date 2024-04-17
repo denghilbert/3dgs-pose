@@ -35,7 +35,8 @@ def rasterize_gaussians(
     u_radial,
     v_radial,
     affine_coeff,
-    poly_coeff
+    poly_coeff,
+    radial
 ):
     return _RasterizeGaussians.apply(
         means3D,
@@ -54,6 +55,7 @@ def rasterize_gaussians(
         v_radial,
         affine_coeff,
         poly_coeff,
+        radial,
         raster_settings.viewmatrix,
         raster_settings.campos,
         raster_settings.projmatrix,
@@ -80,6 +82,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         v_radial,
         affine_coeff,
         poly_coeff,
+        radial,
         world_view,
         camera_center,
         full_proj,
@@ -99,6 +102,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             v_radial,
             affine_coeff,
             poly_coeff,
+            radial,
             opacities,
             scales,
             rotations,
@@ -203,7 +207,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in backward. Writing snapshot_bw.dump for debugging.\n")
                 raise ex
         else:
-            grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center, grad_full_proj, grad_world_view, covariance, grad_displacement_p_w2c, grad_distortion_params, grad_u_distortion, grad_v_distortion, grad_u_radial, grad_v_radial, grad_affine, grad_poly = _C.rasterize_gaussians_backward(*args)
+            grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_camera_center, grad_full_proj, grad_world_view, covariance, grad_displacement_p_w2c, grad_distortion_params, grad_u_distortion, grad_v_distortion, grad_u_radial, grad_v_radial, grad_affine, grad_poly, grad_radial = _C.rasterize_gaussians_backward(*args)
 
         # remember to set three gradient to 0 if recovering original 3dgs
         #grad_camera_center = torch.zeros(3).cuda()
@@ -250,6 +254,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_v_radial,
             grad_affine,
             grad_poly,
+            grad_radial,
             grad_world_view,
             grad_camera_center,
             grad_full_proj,
@@ -290,7 +295,7 @@ class GaussianRasterizer(nn.Module):
 
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, displacement_p_w2c=None, distortion_params=None, u_distortion=None, v_distortion=None, u_radial=None, v_radial=None, affine_coeff=None, poly_coeff=None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, displacement_p_w2c=None, distortion_params=None, u_distortion=None, v_distortion=None, u_radial=None, v_radial=None, affine_coeff=None, poly_coeff=None, radial=None):
 
         raster_settings = self.raster_settings
 
@@ -330,6 +335,7 @@ class GaussianRasterizer(nn.Module):
             u_radial,
             v_radial,
             affine_coeff,
-            poly_coeff
+            poly_coeff,
+            radial
         )
 

@@ -39,6 +39,7 @@ namespace FORWARD
         const float* v_distortion,
         const float* u_radial,
         const float* v_radial,
+	    const float* radial,
 		const float* viewmatrix,
 		const float* projmatrix,
 		const float* intrinsic,

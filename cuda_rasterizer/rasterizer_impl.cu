@@ -214,6 +214,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* v_distortion,
 	const float* u_radial,
 	const float* v_radial,
+	const float* radial,
 	const float* opacities,
 	const float* scales,
 	const float scale_modifier,
@@ -278,6 +279,7 @@ int CudaRasterizer::Rasterizer::forward(
 	    v_distortion,
 	    u_radial,
 	    v_radial,
+        radial,
 		viewmatrix, projmatrix,
         intrinsic,
 		(glm::vec3*)cam_pos,
@@ -417,6 +419,7 @@ void CudaRasterizer::Rasterizer::backward(
 	float* dL_dv_distortion,
 	float* dL_du_radial,
 	float* dL_dv_radial,
+	float* dL_dradial,
     float* dL_dcampos,
 	bool debug)
 {
@@ -508,6 +511,7 @@ void CudaRasterizer::Rasterizer::backward(
 	    dL_dv_distortion,
 	    dL_du_radial,
 	    dL_dv_radial,
+	    dL_dradial,
         dL_dcampos), debug)
 
 }

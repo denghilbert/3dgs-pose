@@ -511,6 +511,7 @@ __global__ void preprocessCUDA(
 	float* dL_dv_distortion,
 	float* dL_du_radial,
 	float* dL_dv_radial,
+	float* dL_dradial,
     glm::vec3* dL_dcampos)
 {
 	auto idx = cg::this_grid().thread_rank();
@@ -549,10 +550,13 @@ __global__ void preprocessCUDA(
     float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
     //m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
 
+
     float4 m_hom = transformPoint4x4(m_w2c, intrinsic);
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
 
+    // backward of omnidirectional camera model
+    //---------------------------------------------------------------//
     float inv_r  = 1 / sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y);
     float theta  = atan(sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y));
     float theta2 = theta * theta;
@@ -562,12 +566,33 @@ __global__ void preprocessCUDA(
     float theta9 = theta7 * theta2;
 
     if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 4){
-        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta3 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta3);
-        dL_dpoly[4 * idx + 1] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta5 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta5);
-        dL_dpoly[4 * idx + 2] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta7);
-        dL_dpoly[4 * idx + 3] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta9);
+        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta3 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta3);
+        dL_dpoly[4 * idx + 1] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta5 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta5);
+        dL_dpoly[4 * idx + 2] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta7);
+        dL_dpoly[4 * idx + 3] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta9);
     }
+    //---------------------------------------------------------------//
 
+
+    // backward of distortion table
+    //---------------------------------------------------------------//
+    int left_x  = int((theta / 1.57079632679) * 1000);
+    int right_x = int((theta / 1.57079632679) * 1000) + 1;
+    float middle_x = (theta / 1.57079632679) * 1000;
+
+    if (right_x < 1000 && right_x >= 0 && left_x < 1000 && left_x >= 0) {
+        dL_dradial[left_x] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.x * (right_x - middle_x) / (right_x - left_x);
+        dL_dradial[left_x] += dL_dmean2D[idx].y * (image_height / 2) * m_w * m_w2c.y * (right_x - middle_x) / (right_x - left_x);
+
+
+        dL_dradial[right_x] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.x * (middle_x - left_x) / (right_x - left_x);
+        dL_dradial[right_x] += dL_dmean2D[idx].y * (image_height / 2) * m_w * m_w2c.y * (middle_x - left_x) / (right_x - left_x);
+    }
+    //---------------------------------------------------------------//
+
+
+    // backward of grid
+    //---------------------------------------------------------------//
     int u_idx = int((p_proj.x + 1) * (res_u / 2));
     int v_idx = int((p_proj.y + 1) * (res_v / 2));
     float4 ABCD;
@@ -611,8 +636,10 @@ __global__ void preprocessCUDA(
         dL_dv_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z * p_proj.y;
         dL_dv_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w * p_proj.y;
     }
+    //---------------------------------------------------------------//
 
 	// Compute loss gradient w.r.t. 8 distortion parameters using dL_dmean2D
+    //---------------------------------------------------------------//
     float k1 = distortion_params[0];
     float k2 = distortion_params[1];
     float k3 = distortion_params[2];
@@ -649,6 +676,7 @@ __global__ void preprocessCUDA(
         dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].y * (image_height /2) * (float(2) * y2 + r2);
         dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].y * (image_height /2) * _2xy;
     }
+    //---------------------------------------------------------------//
 
 	// Compute loss gradient w.r.t. 3D means under camera coordinate with displacement due to gradients of 2D means
     //dL_ddisplacement_p_w2c[4 * idx] += dL_dmean2D[idx].x * (image_width / 2) * m_w * intrinsic[0]; 
@@ -664,14 +692,20 @@ __global__ void preprocessCUDA(
     //    printf("*********************************\n");
     //}
 
+
+
+    // backward of projection matrix
+    //---------------------------------------------------------------//
+    float scaling_radial = m_w2c.x / displacement_p_w2c[4 * idx];
+    scaling_radial = 1.;
 	// Compute loss gradient w.r.t. 3D means due to gradients of 2D means
 	// from rendering procedure
 	glm::vec3 dL_dmean;
 	float mul1 = (proj[0] * m.x + proj[4] * m.y + proj[8] * m.z + proj[12]) * m_w * m_w;
 	float mul2 = (proj[1] * m.x + proj[5] * m.y + proj[9] * m.z + proj[13]) * m_w * m_w;
-	dL_dmean.x = (image_width / 2) * (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
-	dL_dmean.y = (image_width / 2) * (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
-	dL_dmean.z = (image_width / 2) * (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (image_height / 2) * (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
+	dL_dmean.x = scaling_radial * (image_width / 2) * (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + scaling_radial * (image_height / 2) * (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
+	dL_dmean.y = scaling_radial * (image_width / 2) * (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + scaling_radial * (image_height / 2) * (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
+	dL_dmean.z = scaling_radial * (image_width / 2) * (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + scaling_radial * (image_height / 2) * (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
     // Original 3dgs implementation without height and width as the constants
 	//dL_dmean.x = (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
 	//dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
@@ -683,28 +717,28 @@ __global__ void preprocessCUDA(
     //dL_dprojmatrix[16 * idx + 4] = m.y * dL_dmean2D[idx].x;
     //dL_dprojmatrix[16 * idx + 8] = m.z * dL_dmean2D[idx].x;
     //dL_dprojmatrix[16 * idx + 12] = dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 0] = m_w * m.x * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 4] = m_w * m.y * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 8] = m_w * m.z * dL_dmean2D[idx].x;
-    dL_dprojmatrix[16 * idx + 12] = m_w * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 0]  = scaling_radial * m_w * m.x * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 4]  = scaling_radial * m_w * m.y * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 8]  = scaling_radial * m_w * m.z * dL_dmean2D[idx].x;
+    dL_dprojmatrix[16 * idx + 12] = scaling_radial * m_w * dL_dmean2D[idx].x;
     // the graident flow back from uy (screen), p1, p5, p9, p13
     //dL_dprojmatrix[16 * idx + 1] = m.x * dL_dmean2D[idx].y;
     //dL_dprojmatrix[16 * idx + 5] = m.y * dL_dmean2D[idx].y;
     //dL_dprojmatrix[16 * idx + 9] = m.z * dL_dmean2D[idx].y;
     //dL_dprojmatrix[16 * idx + 13] = dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 1] = m_w * m.x * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 5] = m_w * m.y * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 9] = m_w * m.z * dL_dmean2D[idx].y;
-    dL_dprojmatrix[16 * idx + 13] = m_w * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 1]  = scaling_radial * m_w * m.x * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 5]  = scaling_radial * m_w * m.y * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 9]  = scaling_radial * m_w * m.z * dL_dmean2D[idx].y;
+    dL_dprojmatrix[16 * idx + 13] = scaling_radial * m_w * dL_dmean2D[idx].y;
     // the graident flow back from both ux and uy (screen), p3, p7, p11, p15
     //dL_dprojmatrix[16 * idx + 3] = (m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 7] = (m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 11] = (m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 15] = (m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 3] = (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 7] = (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 11] = (m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
-    dL_dprojmatrix[16 * idx + 15] = (m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 3]  = scaling_radial * (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 7]  = scaling_radial * (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 11] = scaling_radial * (m_w * m_w * (-1.) * m_hom.x * m.z * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.z * dL_dmean2D[idx].y);
+    dL_dprojmatrix[16 * idx + 15] = scaling_radial * (m_w * m_w * (-1.) * m_hom.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * dL_dmean2D[idx].y);
     // p2, p6, p10, p14 have the identical gradient to p3 7 11 15
     //dL_dprojmatrix[16 * idx + 2] = (m_w * m_w * (-1.) * m_hom.x * m.x * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.x * dL_dmean2D[idx].y);
     //dL_dprojmatrix[16 * idx + 6] = (m_w * m_w * (-1.) * m_hom.x * m.y * dL_dmean2D[idx].x + m_w * m_w * (-1.) * m_hom.y * m.y * dL_dmean2D[idx].y);
@@ -724,6 +758,7 @@ __global__ void preprocessCUDA(
     //    }
     //    printf("*********************************\n");
     //}
+    //---------------------------------------------------------------//
 
 
 	// That's the second part of the mean gradient. Previous computation
@@ -1000,6 +1035,7 @@ void BACKWARD::preprocess(
 	float* dL_dv_distortion,
 	float* dL_du_radial,
 	float* dL_dv_radial,
+	float* dL_dradial,
 	float* dL_dcampos)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
@@ -1067,6 +1103,7 @@ void BACKWARD::preprocess(
 	    dL_dv_distortion,
 	    dL_du_radial,
 	    dL_dv_radial,
+	    dL_dradial,
 		(glm::vec3*)dL_dcampos);
 }
 

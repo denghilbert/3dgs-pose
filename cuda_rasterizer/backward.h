@@ -84,6 +84,7 @@ namespace BACKWARD
 	    float* dL_dv_distortion,
         float* dL_du_radial,
         float* dL_dv_radial,
+	    float* dL_dradial,
         float* dL_dcampos);
 }
 

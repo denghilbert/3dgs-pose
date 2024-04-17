@@ -47,6 +47,7 @@ namespace CudaRasterizer
             const float* v_distortion,
             const float* u_radial,
             const float* v_radial,
+            const float* radial,
 			const float* opacities,
 			const float* scales,
 			const float scale_modifier,
@@ -117,6 +118,7 @@ namespace CudaRasterizer
             float* dL_dv_distortion,
             float* dL_du_radial,
             float* dL_dv_radial,
+	        float* dL_dradial,
             float* dL_dcampos,
 			bool debug);
 	};
