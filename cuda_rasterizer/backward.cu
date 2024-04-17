@@ -444,6 +444,33 @@ __device__ float4 bilinearInterpolateWeights(int x, int y, float xp, float yp)
 	return {A, B, C, D};
 }
 
+
+// Omnidirectional camera distortion
+__device__ float3 omnidirectionalDistortion_back(float2 ab, float z, const float* affine_coeff, const float* poly_coeff) {
+    float inv_r    = 1 / sqrt(ab.x * ab.x + ab.y * ab.y);
+    float theta    = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    float theta2   = theta * theta;
+    float theta4   = theta2 * theta2;
+    float theta6   = theta4 * theta2;
+    float theta8   = theta4 * theta4;
+    float rho      = theta * (1 + poly_coeff[0] * theta2 + poly_coeff[1] * theta4 + poly_coeff[2] * theta6 + poly_coeff[3] * theta8);
+    //float rho      = theta * (1 + poly_coeff[0] * theta2 * 0 + poly_coeff[1] * theta4 * 0 + poly_coeff[2] * theta6 * 0 + poly_coeff[3] * theta8 * 0);
+
+    //float e  = affine_coeff[1];
+    //float d  = affine_coeff[2];
+    //float c  = affine_coeff[3];
+    //float cx = affine_coeff[4];
+    //float cy = affine_coeff[5];
+
+    //float dist_x =     ab.x * rho + e * ab.y * rho + cx;
+    //float dist_y = d * ab.x * rho + c * ab.y * rho + cy;
+
+    return {rho * inv_r * ab.x * z, rho * inv_r * ab.y * z, z};
+    //return {ab.x * z, ab.y * z, z};
+}
+
+
+
 // Backward pass of the preprocessing steps, except
 // for the covariance computation and inversion
 // (those are handled by a previous kernel call)
@@ -517,9 +544,12 @@ __global__ void preprocessCUDA(
 	float3 m = means[idx];
 
 	// Taking care of gradients from the screenspace points
-	float4 m_hom = transformPoint4x4(m, proj);
-	//float3 m_cam_coordinate = transformPoint4x3(m, view);
-	float3 m_cam_coordinate = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
+	//float4 m_hom = transformPoint4x4(m, proj);
+	float3 m_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
+    float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
+    //m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
+
+    float4 m_hom = transformPoint4x4(m_w2c, intrinsic);
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
 
@@ -531,11 +561,11 @@ __global__ void preprocessCUDA(
     float theta7 = theta5 * theta2;
     float theta9 = theta7 * theta2;
 
-    if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 2){
+    if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 4){
         dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta3 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta3);
         dL_dpoly[4 * idx + 1] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta5 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta5);
-        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta7);
-        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta9);
+        dL_dpoly[4 * idx + 2] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta7);
+        dL_dpoly[4 * idx + 3] = (dL_dmean2D[idx].x * (image_width / 2) * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * p_proj.y * inv_r * theta9);
     }
 
     int u_idx = int((p_proj.x + 1) * (res_u / 2));

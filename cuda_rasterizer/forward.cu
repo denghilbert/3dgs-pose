@@ -240,6 +240,7 @@ __device__ float3 omnidirectionalDistortion_OPENCV(float2 ab, float z, const flo
     float theta6   = theta4 * theta2;
     float theta8   = theta4 * theta4;
     float rho      = theta * (1 + poly_coeff[0] * theta2 + poly_coeff[1] * theta4 + poly_coeff[2] * theta6 + poly_coeff[3] * theta8);
+    //float rho      = theta * (1 + poly_coeff[0] * theta2 * 0 + poly_coeff[1] * theta4 * 0 + poly_coeff[2] * theta6 * 0 + poly_coeff[3] * theta8 * 0);
 
     //float e  = affine_coeff[1];
     //float d  = affine_coeff[2];
@@ -251,7 +252,6 @@ __device__ float3 omnidirectionalDistortion_OPENCV(float2 ab, float z, const flo
     //float dist_y = d * ab.x * rho + c * ab.y * rho + cy;
     
     return {rho * inv_r * ab.x * z, rho * inv_r * ab.y * z, z};
-    //return {ab.x * z, ab.y * z, z};
 }
 
 // Omnidirectional camera distortion
