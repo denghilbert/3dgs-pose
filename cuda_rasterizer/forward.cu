@@ -352,7 +352,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // Both are the same!
     float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
     //p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
-    //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
+    p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     //---------------------------------------------------------------//
 
 

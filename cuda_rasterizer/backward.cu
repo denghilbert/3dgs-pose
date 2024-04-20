@@ -548,7 +548,7 @@ __global__ void preprocessCUDA(
 	//float4 m_hom = transformPoint4x4(m, proj);
 	float3 m_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
     float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
-    //m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
+    m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
 
 
     float4 m_hom = transformPoint4x4(m_w2c, intrinsic);
