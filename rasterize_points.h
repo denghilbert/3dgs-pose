@@ -62,6 +62,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
     const torch::Tensor& intrinsic,
     const torch::Tensor& displacement_p_w2c,
     const torch::Tensor& distortion_params,
+    const torch::Tensor& u_distortion,
+    const torch::Tensor& v_distortion,
     const torch::Tensor& affine_coeff,
     const torch::Tensor& poly_coeff,
 	const int res_u,

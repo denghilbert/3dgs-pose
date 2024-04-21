@@ -470,6 +470,63 @@ __device__ float3 omnidirectionalDistortion_back(float2 ab, float z, const float
 }
 
 
+// Bilinear Interpolation for displacement
+__device__ float2 bilinearInterpolateKernel_back(int x, int y, const int res_u, const float* u_distortion, const float* v_distortion, float xp, float yp)
+{
+    // Assuming u and v are arrays containing the u and v displacements for the corners
+    // u[0], v[0] for (x, y)
+    // u[1], v[1] for (x+1, y)
+    // u[2], v[2] for (x, y+1)
+    // u[3], v[3] for (x+1, y+1)
+
+    // Compute bilinear coefficients
+    float A = (x + 1 - xp) * (y + 1 - yp);
+    float B = (xp - x) * (y + 1 - yp);
+    float C = (x + 1 - xp) * (yp - y);
+    float D = (xp - x) * (yp - y);
+
+    // Interpolate u
+    float up = A * u_distortion[x + y * res_u] + B * u_distortion[x + 1 + y * res_u] + C * u_distortion[x + (y + 1) * res_u] + D * u_distortion[x + 1 + (y + 1) * res_u];
+
+    // Interpolate v
+    float vp = A * v_distortion[x + y * res_u] + B * v_distortion[x + 1 + y * res_u] + C * v_distortion[x + (y + 1) * res_u] + D * v_distortion[x + 1 + (y + 1) * res_u];
+
+    // check interpolation weights
+    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    printf("*********************************\n");
+    //    printf("%d\n", x);
+    //    printf("%d\n", y);
+    //    printf("%f\n", xp);
+    //    printf("%f\n", yp);
+    //    printf("%f\n", A);
+    //    printf("%f\n", B);
+    //    printf("%f\n", C);
+    //    printf("%f\n", D);
+    //    printf("%f\n", A + B + C + D);
+    //    printf("%f\n", up);
+    //    printf("%f\n", vp);
+    //    printf("*********************************\n");
+    //}
+
+	return {up, vp};
+}
+
+// Apply neuralens
+__device__ float3 applyNeuralens_back(float2 ab, float z, int res_u, int res_v, const float* u_distortion, const float* v_distortion) {
+    int u_idx = int((ab.x + 1) * (res_u / 2));
+    int v_idx = int((ab.y + 1) * (res_v / 2));
+    float2 uv_displacement;
+
+    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+        uv_displacement = bilinearInterpolateKernel_back(u_idx, v_idx, res_u, u_distortion, v_distortion, (ab.x + 1) * (res_u / 2), (ab.y + 1) * (res_v / 2));
+    }
+
+    ab.x = ab.x + uv_displacement.x;
+    ab.y = ab.y + uv_displacement.y;
+
+    return {ab.x * z, ab.y * z, z};
+}
+
 
 // Backward pass of the preprocessing steps, except
 // for the covariance computation and inversion
@@ -489,6 +546,8 @@ __global__ void preprocessCUDA(
 	const float* intrinsic,
 	const float* displacement_p_w2c,
 	const float* distortion_params,
+	const float* u_distortion,
+	const float* v_distortion,
 	const float* affine_coeff,
 	const float* poly_coeff,
 	const int res_u, int res_v,
@@ -547,13 +606,40 @@ __global__ void preprocessCUDA(
 	// Taking care of gradients from the screenspace points
 	//float4 m_hom = transformPoint4x4(m, proj);
 	float3 m_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
+
+    // Applay omnidirectional model
     float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
     m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
+    // Apply neuralens
+    //m_w2c = applyNeuralens_back(ab, m_w2c.z, res_u, res_v, u_distortion, v_distortion);
 
 
     float4 m_hom = transformPoint4x4(m_w2c, intrinsic);
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
+
+    // backward of neuralens
+    //---------------------------------------------------------------//
+    //int u_idx = int((ab.x + 1) * (res_u / 2));
+    //int v_idx = int((ab.y + 1) * (res_v / 2));
+    //float4 ABCD;
+
+    //if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+    //    ABCD = bilinearInterpolateWeights(u_idx, v_idx, (ab.x + 1) * (res_u / 2), (ab.y + 1) * (res_v / 2));
+    //    // Partial derivative of loss w.r.t. u_distortion and v_distortion
+    //    // Gradient in u direction
+    //    dL_du_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.x;
+    //    dL_du_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.y;
+    //    dL_du_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.z;
+    //    dL_du_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.w;
+
+    //    // Gradient in v direction
+    //    dL_dv_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.x;
+    //    dL_dv_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.y;
+    //    dL_dv_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.z;
+    //    dL_dv_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.w;
+    //}
+    //---------------------------------------------------------------//
 
     // backward of omnidirectional camera model
     //---------------------------------------------------------------//
@@ -576,106 +662,106 @@ __global__ void preprocessCUDA(
 
     // backward of distortion table
     //---------------------------------------------------------------//
-    int left_x  = int((theta / 1.57079632679) * 1000);
-    int right_x = int((theta / 1.57079632679) * 1000) + 1;
-    float middle_x = (theta / 1.57079632679) * 1000;
+    //int left_x  = int((theta / 1.57079632679) * 1000);
+    //int right_x = int((theta / 1.57079632679) * 1000) + 1;
+    //float middle_x = (theta / 1.57079632679) * 1000;
 
-    if (right_x < 1000 && right_x >= 0 && left_x < 1000 && left_x >= 0) {
-        dL_dradial[left_x] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.x * (right_x - middle_x) / (right_x - left_x);
-        dL_dradial[left_x] += dL_dmean2D[idx].y * (image_height / 2) * m_w * m_w2c.y * (right_x - middle_x) / (right_x - left_x);
+    //if (right_x < 1000 && right_x >= 0 && left_x < 1000 && left_x >= 0) {
+    //    dL_dradial[left_x] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.x * (right_x - middle_x) / (right_x - left_x);
+    //    dL_dradial[left_x] += dL_dmean2D[idx].y * (image_height / 2) * m_w * m_w2c.y * (right_x - middle_x) / (right_x - left_x);
 
 
-        dL_dradial[right_x] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.x * (middle_x - left_x) / (right_x - left_x);
-        dL_dradial[right_x] += dL_dmean2D[idx].y * (image_height / 2) * m_w * m_w2c.y * (middle_x - left_x) / (right_x - left_x);
-    }
+    //    dL_dradial[right_x] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.x * (middle_x - left_x) / (right_x - left_x);
+    //    dL_dradial[right_x] += dL_dmean2D[idx].y * (image_height / 2) * m_w * m_w2c.y * (middle_x - left_x) / (right_x - left_x);
+    //}
     //---------------------------------------------------------------//
 
 
     // backward of grid
     //---------------------------------------------------------------//
-    int u_idx = int((p_proj.x + 1) * (res_u / 2));
-    int v_idx = int((p_proj.y + 1) * (res_v / 2));
-    float4 ABCD;
+    //int u_idx = int((p_proj.x + 1) * (res_u / 2));
+    //int v_idx = int((p_proj.y + 1) * (res_v / 2));
+    //float4 ABCD;
 
-    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
-        ABCD = bilinearInterpolateWeights(u_idx, v_idx, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+    //if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+    //    ABCD = bilinearInterpolateWeights(u_idx, v_idx, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
 
-        //// check ABCD
-        //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-        //    printf("*********************************\n");
-        //    printf("%f\n", ABCD.x);
-        //    printf("%f\n", ABCD.y);
-        //    printf("%f\n", ABCD.z);
-        //    printf("%f\n", ABCD.w);
-        //    printf("*********************************\n");
-        //}
+    //    //// check ABCD
+    //    //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    //    printf("*********************************\n");
+    //    //    printf("%f\n", ABCD.x);
+    //    //    printf("%f\n", ABCD.y);
+    //    //    printf("%f\n", ABCD.z);
+    //    //    printf("%f\n", ABCD.w);
+    //    //    printf("*********************************\n");
+    //    //}
 
-        // Partial derivative of loss w.r.t. u_distortion and v_distortion
-        // Gradient in u direction
-        dL_du_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * ABCD.x;
-        dL_du_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * ABCD.y;
-        dL_du_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * ABCD.z;
-        dL_du_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * ABCD.w;
+    //    // Partial derivative of loss w.r.t. u_distortion and v_distortion
+    //    // Gradient in u direction
+    //    dL_du_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * ABCD.x;
+    //    dL_du_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * ABCD.y;
+    //    dL_du_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * ABCD.z;
+    //    dL_du_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * ABCD.w;
 
-        // Gradient in v direction
-        dL_dv_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * ABCD.x;
-        dL_dv_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * ABCD.y;
-        dL_dv_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z;
-        dL_dv_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w;
+    //    // Gradient in v direction
+    //    dL_dv_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * ABCD.x;
+    //    dL_dv_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * ABCD.y;
+    //    dL_dv_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z;
+    //    dL_dv_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w;
 
-        // Partial derivative of loss w.r.t. u_radial and v_radial
-        // Gradient in u direction
-        dL_du_radial[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * ABCD.x * p_proj.x;
-        dL_du_radial[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * ABCD.y * p_proj.x;
-        dL_du_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * ABCD.z * p_proj.x;
-        dL_du_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * ABCD.w * p_proj.x;
+    //    // Partial derivative of loss w.r.t. u_radial and v_radial
+    //    // Gradient in u direction
+    //    dL_du_radial[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * ABCD.x * p_proj.x;
+    //    dL_du_radial[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * ABCD.y * p_proj.x;
+    //    dL_du_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * ABCD.z * p_proj.x;
+    //    dL_du_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * ABCD.w * p_proj.x;
 
-        // Gradient in v direction
-        dL_dv_radial[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * ABCD.x * p_proj.y;
-        dL_dv_radial[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * ABCD.y * p_proj.y;
-        dL_dv_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z * p_proj.y;
-        dL_dv_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w * p_proj.y;
-    }
+    //    // Gradient in v direction
+    //    dL_dv_radial[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * ABCD.x * p_proj.y;
+    //    dL_dv_radial[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * ABCD.y * p_proj.y;
+    //    dL_dv_radial[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * ABCD.z * p_proj.y;
+    //    dL_dv_radial[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * ABCD.w * p_proj.y;
+    //}
     //---------------------------------------------------------------//
 
 	// Compute loss gradient w.r.t. 8 distortion parameters using dL_dmean2D
     //---------------------------------------------------------------//
-    float k1 = distortion_params[0];
-    float k2 = distortion_params[1];
-    float k3 = distortion_params[2];
-    float k4 = distortion_params[3];
-    float k5 = distortion_params[4];
-    float k6 = distortion_params[5];
-    float p1 = distortion_params[6];
-    float p2 = distortion_params[7];
-    
-    float x2       = p_proj.x * p_proj.x;
-    float y2       = p_proj.y * p_proj.y;
-    float r2       = x2 + y2;
-    float _2xy     = float(2) * p_proj.x * p_proj.y;
-    float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
-    float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
-    // The forward distortion fails if the points are too far away on the image plain
-    if (r2 < 2){
-        // gradient from p_proj.x
-        dL_ddistortion_params[8 * idx]     += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 ) / radial_v;
-        dL_ddistortion_params[8 * idx + 1] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 * r2) / radial_v;
-        dL_ddistortion_params[8 * idx + 2] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 * r2 * r2) / radial_v;
-        dL_ddistortion_params[8 * idx + 3] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2) / (radial_v * radial_v);
-        dL_ddistortion_params[8 * idx + 4] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2 * r2) / (radial_v * radial_v);
-        dL_ddistortion_params[8 * idx + 5] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2 * r2 * r2) / (radial_v * radial_v);
-        dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].x * (image_width / 2) * _2xy;
-        dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].x * (image_width / 2) * (float(2) * x2 + r2);
-        // gradient from p_proj.y
-        dL_ddistortion_params[8 * idx]     += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 ) / radial_v;
-        dL_ddistortion_params[8 * idx + 1] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 * r2) / radial_v;
-        dL_ddistortion_params[8 * idx + 2] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 * r2 * r2) / radial_v;
-        dL_ddistortion_params[8 * idx + 3] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2) / (radial_v * radial_v);
-        dL_ddistortion_params[8 * idx + 4] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2 * r2) / (radial_v * radial_v);
-        dL_ddistortion_params[8 * idx + 5] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2 * r2 * r2) / (radial_v * radial_v);
-        dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].y * (image_height /2) * (float(2) * y2 + r2);
-        dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].y * (image_height /2) * _2xy;
-    }
+    //float k1 = distortion_params[0];
+    //float k2 = distortion_params[1];
+    //float k3 = distortion_params[2];
+    //float k4 = distortion_params[3];
+    //float k5 = distortion_params[4];
+    //float k6 = distortion_params[5];
+    //float p1 = distortion_params[6];
+    //float p2 = distortion_params[7];
+    //
+    //float x2       = p_proj.x * p_proj.x;
+    //float y2       = p_proj.y * p_proj.y;
+    //float r2       = x2 + y2;
+    //float _2xy     = float(2) * p_proj.x * p_proj.y;
+    //float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
+    //float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
+    //// The forward distortion fails if the points are too far away on the image plain
+    //if (r2 < 2){
+    //    // gradient from p_proj.x
+    //    dL_ddistortion_params[8 * idx]     += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 ) / radial_v;
+    //    dL_ddistortion_params[8 * idx + 1] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 * r2) / radial_v;
+    //    dL_ddistortion_params[8 * idx + 2] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * r2 * r2 * r2) / radial_v;
+    //    dL_ddistortion_params[8 * idx + 3] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2) / (radial_v * radial_v);
+    //    dL_ddistortion_params[8 * idx + 4] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2 * r2) / (radial_v * radial_v);
+    //    dL_ddistortion_params[8 * idx + 5] += dL_dmean2D[idx].x * (image_width / 2) * (p_proj.x * radial_u * (-1.) * r2 * r2 * r2) / (radial_v * radial_v);
+    //    dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].x * (image_width / 2) * _2xy;
+    //    dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].x * (image_width / 2) * (float(2) * x2 + r2);
+    //    // gradient from p_proj.y
+    //    dL_ddistortion_params[8 * idx]     += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 ) / radial_v;
+    //    dL_ddistortion_params[8 * idx + 1] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 * r2) / radial_v;
+    //    dL_ddistortion_params[8 * idx + 2] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * r2 * r2 * r2) / radial_v;
+    //    dL_ddistortion_params[8 * idx + 3] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2) / (radial_v * radial_v);
+    //    dL_ddistortion_params[8 * idx + 4] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2 * r2) / (radial_v * radial_v);
+    //    dL_ddistortion_params[8 * idx + 5] += dL_dmean2D[idx].y * (image_height /2) * (p_proj.y * radial_u * (-1.) * r2 * r2 * r2) / (radial_v * radial_v);
+    //    dL_ddistortion_params[8 * idx + 6] += dL_dmean2D[idx].y * (image_height /2) * (float(2) * y2 + r2);
+    //    dL_ddistortion_params[8 * idx + 7] += dL_dmean2D[idx].y * (image_height /2) * _2xy;
+    //}
     //---------------------------------------------------------------//
 
 	// Compute loss gradient w.r.t. 3D means under camera coordinate with displacement due to gradients of 2D means
@@ -1009,6 +1095,8 @@ void BACKWARD::preprocess(
 	const float* intrinsic,
     const float* displacement_p_w2c,
     const float* distortion_params,
+	const float* u_distortion,
+	const float* v_distortion,
     const float* affine_coeff,
     const float* poly_coeff,
 	const int res_u, int res_v,
@@ -1081,6 +1169,8 @@ void BACKWARD::preprocess(
 		intrinsic,
         displacement_p_w2c,
         distortion_params,
+        u_distortion,
+        v_distortion,
         affine_coeff, 
         poly_coeff,
         res_u, res_v,

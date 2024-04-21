@@ -282,6 +282,21 @@ __device__ float3 omnidirectionalDistortion(float2 ab, float z, const float* aff
     //return {ab.x * z, ab.y * z, z};
 }
 
+// Apply neuralens
+__device__ float3 applyNeuralens(float2 ab, float z, int res_u, int res_v, const float* u_distortion, const float* v_distortion) {
+    int u_idx = int((ab.x + 1) * (res_u / 2));
+    int v_idx = int((ab.y + 1) * (res_v / 2));
+    float2 uv_displacement;
+
+    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+        uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (ab.x + 1) * (res_u / 2), (ab.y + 1) * (res_v / 2));
+    }
+
+    ab.x = ab.x + uv_displacement.x;
+    ab.y = ab.y + uv_displacement.y;
+
+    return {ab.x * z, ab.y * z, z};
+}
 
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
@@ -351,21 +366,30 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // in omnidirectional camera, we first get [x/z, y/z] and then apply intrisic
     // Both are the same!
     float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    //p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
     p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     //---------------------------------------------------------------//
 
 
-    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
-    int x1 = int((theta / 1.57079632679) * 1000);
-    int x_2 = int((theta / 1.57079632679) * 1000) + 1;
-    float x = (theta / 1.57079632679) * 1000;
-    if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
-        float y1 = radial[x1];
-        float y_2 = radial[x_2];
-        p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
-        p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
-    }
+    // use neuralens
+    //---------------------------------------------------------------//
+    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    //p_w2c = applyNeuralens(ab, p_w2c.z, res_u, res_v, u_distortion, v_distortion);
+    //---------------------------------------------------------------//
+
+
+    // forward of raidal table
+    //---------------------------------------------------------------//
+    //float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    //int x1 = int((theta / 1.57079632679) * 1000);
+    //int x_2 = int((theta / 1.57079632679) * 1000) + 1;
+    //float x = (theta / 1.57079632679) * 1000;
+    //if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
+    //    float y1 = radial[x1];
+    //    float y_2 = radial[x_2];
+    //    p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+    //    p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+    //}
+    //---------------------------------------------------------------//
     
 
 	float4 p_hom = transformPoint4x4(p_w2c, intrinsic);
@@ -391,7 +415,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
     //    printf("*********************************\n");
     //}
 
-    // backward of grid
+    // forward of grid
     //---------------------------------------------------------------//
     // pay a special attention to u_distortion index
     // u_distortion[u, v] represents the displacement at (u, v)

@@ -161,6 +161,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& intrinsic,
     const torch::Tensor& displacement_p_w2c,
     const torch::Tensor& distortion_params,
+    const torch::Tensor& u_distortion,
+    const torch::Tensor& v_distortion,
     const torch::Tensor& affine_coeff,
     const torch::Tensor& poly_coeff,
 	const int res_u,
@@ -210,8 +212,10 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_ddistortion_params = torch::zeros({P, 8}, means3D.options());
   torch::Tensor dL_du_distortion = torch::zeros({res_v, res_u}, means3D.options());
   torch::Tensor dL_dv_distortion = torch::zeros({res_v, res_u}, means3D.options());
-  torch::Tensor dL_du_radial = torch::zeros({res_v, res_u}, means3D.options());
-  torch::Tensor dL_dv_radial = torch::zeros({res_v, res_u}, means3D.options());
+  //torch::Tensor dL_du_radial = torch::zeros({res_v, res_u}, means3D.options());
+  //torch::Tensor dL_dv_radial = torch::zeros({res_v, res_u}, means3D.options());
+  torch::Tensor dL_du_radial = torch::zeros({400, 400}, means3D.options());
+  torch::Tensor dL_dv_radial = torch::zeros({400, 400}, means3D.options());
   torch::Tensor dL_daffine = torch::zeros({P, 6}, means3D.options());
   torch::Tensor dL_dpoly = torch::zeros({P, 4}, means3D.options());
   torch::Tensor dL_dradial = torch::zeros({1000}, means3D.options());
@@ -247,6 +251,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  colors.contiguous().data<float>(),
 	  displacement_p_w2c.contiguous().data<float>(), 
 	  distortion_params.contiguous().data<float>(), 
+	  u_distortion.contiguous().data<float>(), 
+	  v_distortion.contiguous().data<float>(), 
 	  affine_coeff.contiguous().data<float>(), 
 	  poly_coeff.contiguous().data<float>(), 
 	  alphas.contiguous().data<float>(),

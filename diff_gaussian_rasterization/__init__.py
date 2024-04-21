@@ -145,7 +145,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         ctx.camera_center = camera_center
         ctx.full_proj = full_proj
         ctx.world_view = world_view
-        ctx.save_for_backward(colors_precomp, means3D, displacement_p_w2c, distortion_params, affine_coeff, poly_coeff, resolution, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights)
+        ctx.save_for_backward(colors_precomp, means3D, displacement_p_w2c, distortion_params, u_distortion, v_distortion, affine_coeff, poly_coeff, resolution, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights)
         return color, radii, depth, weights, mean2D
 
     @staticmethod
@@ -157,7 +157,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         camera_center = ctx.camera_center
         full_proj = ctx.full_proj
         world_view = ctx.world_view
-        colors_precomp, means3D, displacement_p_w2c, distortion_params, affine_coeff, poly_coeff, resolution, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights = ctx.saved_tensors
+        colors_precomp, means3D, displacement_p_w2c, distortion_params, u_distortion, v_distortion, affine_coeff, poly_coeff, resolution, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, weights = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
@@ -175,6 +175,8 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raster_settings.intrinsic,
                 displacement_p_w2c,
                 distortion_params,
+                u_distortion,
+                v_distortion,
                 affine_coeff,
                 poly_coeff,
                 resolution[1].item(), # the res on u direction is the second element of torch.tensor.shape

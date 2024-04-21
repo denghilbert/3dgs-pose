@@ -58,6 +58,8 @@ namespace BACKWARD
 		const float* intrinsic,
 		const float* displacement_p_w2c,
 		const float* distortion_params,
+		const float* u_distortion,
+		const float* v_distortion,
         const float* affine_coeff,
         const float* poly_coeff,
 	    const int res_u, int res_v,
