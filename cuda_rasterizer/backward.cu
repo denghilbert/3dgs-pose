@@ -609,7 +609,7 @@ __global__ void preprocessCUDA(
 
     // Applay omnidirectional model
     float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
-    m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
+    //m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
     // Apply neuralens
     //m_w2c = applyNeuralens_back(ab, m_w2c.z, res_u, res_v, u_distortion, v_distortion);
 
@@ -628,35 +628,35 @@ __global__ void preprocessCUDA(
     //    ABCD = bilinearInterpolateWeights(u_idx, v_idx, (ab.x + 1) * (res_u / 2), (ab.y + 1) * (res_v / 2));
     //    // Partial derivative of loss w.r.t. u_distortion and v_distortion
     //    // Gradient in u direction
-    //    dL_du_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.x;
-    //    dL_du_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.y;
-    //    dL_du_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.z;
-    //    dL_du_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * m_w * m_w2c.z * ABCD.w;
+    //    dL_du_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.x;
+    //    dL_du_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.y;
+    //    dL_du_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.z;
+    //    dL_du_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.w;
 
     //    // Gradient in v direction
-    //    dL_dv_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.x;
-    //    dL_dv_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.y;
-    //    dL_dv_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.z;
-    //    dL_dv_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) *m_w * m_w2c.z *  ABCD.w;
+    //    dL_dv_distortion[u_idx + v_idx * res_u]           += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] *  ABCD.x;
+    //    dL_dv_distortion[u_idx + 1 + v_idx * res_u]       += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] *  ABCD.y;
+    //    dL_dv_distortion[u_idx + (v_idx + 1) * res_u]     += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] *  ABCD.z;
+    //    dL_dv_distortion[u_idx + 1 + (v_idx + 1) * res_u] += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] *  ABCD.w;
     //}
     //---------------------------------------------------------------//
 
     // backward of omnidirectional camera model
     //---------------------------------------------------------------//
-    float inv_r  = 1 / sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y);
-    float theta  = atan(sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y));
-    float theta2 = theta * theta;
-    float theta3 = theta * theta2;
-    float theta5 = theta3 * theta2;
-    float theta7 = theta5 * theta2;
-    float theta9 = theta7 * theta2;
+    //float inv_r  = 1 / sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y);
+    //float theta  = atan(sqrt(p_proj.x * p_proj.x + p_proj.y * p_proj.y));
+    //float theta2 = theta * theta;
+    //float theta3 = theta * theta2;
+    //float theta5 = theta3 * theta2;
+    //float theta7 = theta5 * theta2;
+    //float theta9 = theta7 * theta2;
 
-    if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 4){
-        dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta3 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta3);
-        dL_dpoly[4 * idx + 1] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta5 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta5);
-        dL_dpoly[4 * idx + 2] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta7);
-        dL_dpoly[4 * idx + 3] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta9);
-    }
+    //if ((p_proj.x * p_proj.x + p_proj.y * p_proj.y) < 4){
+    //    dL_dpoly[4 * idx + 0] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta3 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta3);
+    //    dL_dpoly[4 * idx + 1] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta5 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta5);
+    //    dL_dpoly[4 * idx + 2] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta7 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta7);
+    //    dL_dpoly[4 * idx + 3] = (dL_dmean2D[idx].x * (image_width / 2) * m_w * p_proj.x * inv_r * theta9 + dL_dmean2D[idx].y * (image_height / 2) * m_w * p_proj.y * inv_r * theta9);
+    //}
     //---------------------------------------------------------------//
 
 
