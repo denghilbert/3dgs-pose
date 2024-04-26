@@ -230,6 +230,29 @@ __device__ float2 bilinearInterpolateKernel(int x, int y, const int res_u, const
 	return {up, vp};
 }
 
+// Bilinear Interpolation for control points
+__device__ float2 bilinearInterpolateControlPoints(int x, int y, const int res_u, const float* control_points, float xp, float yp)
+{
+    // Assuming u and v are arrays containing the u and v displacements for the corners
+    // u[0], v[0] for (x, y)
+    // u[1], v[1] for (x+1, y)
+    // u[2], v[2] for (x, y+1)
+    // u[3], v[3] for (x+1, y+1)
+
+    // Compute bilinear coefficients
+    float A = (x + 1 - xp) * (y + 1 - yp);
+    float B = (xp - x) * (y + 1 - yp);
+    float C = (x + 1 - xp) * (yp - y);
+    float D = (xp - x) * (yp - y);
+
+    // Interpolate u
+    float up = A * control_points[2 * (x + y * res_u) + 0] + B * control_points[2 * (x + 1 + y * res_u) + 0] + C * control_points[2 * (x + (y + 1) * res_u) + 0] + D * control_points[2 * (x + 1 + (y + 1) * res_u) + 0];
+                                                                                                                                                                                                             
+    // Interpolate v                                                                                                                                                                                         
+    float vp = A * control_points[2 * (x + y * res_u) + 1] + B * control_points[2 * (x + 1 + y * res_u) + 1] + C * control_points[2 * (x + (y + 1) * res_u) + 1] + D * control_points[2 * (x + 1 + (y + 1) * res_u) + 1];
+
+	return {up, vp};
+}
 
 // Omnidirectional camera distortion
 __device__ float3 omnidirectionalDistortion_OPENCV(float2 ab, float z, const float* affine_coeff, const float* poly_coeff) {
@@ -311,6 +334,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
+	const float* control_points,
+	const float* boundary_original_points,
 	const float* distortion_params,
 	const float* affine_coeff,
 	const float* poly_coeff,
@@ -325,6 +350,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const glm::vec3* cam_pos,
 	const int W, int H,
 	const int res_u, int res_v,
+	const int res_control_points_u, int res_control_points_v,
 	const float tan_fovx, float tan_fovy,
 	const float focal_x, float focal_y,
 	int* radii,
@@ -369,6 +395,48 @@ __global__ void preprocessCUDA(int P, int D, int M,
     //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     //---------------------------------------------------------------//
 
+
+    // forward of control points
+    //---------------------------------------------------------------//
+    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    float ab_u = (ab.x / boundary_original_points[0] + 1) * ((res_control_points_u) / 2);
+    float ab_v = (ab.y / boundary_original_points[1] + 1) * ((res_control_points_v) / 2);
+    int u_idx = int(ab_u);
+    int v_idx = int(ab_v);
+
+    //tensor([[[-1.0701e+00, -5.9811e-01],
+    //     [-1.1921e-07, -5.9811e-01],
+    //     [ 1.0701e+00, -5.9811e-01]],
+
+    //    [[-1.0701e+00, -5.9605e-08],
+    //     [-1.1921e-07, -1.1921e-07],
+    //     [ 1.0701e+00, -1.1921e-07]],
+
+    //    [[-1.0701e+00,  5.9811e-01],
+    //     [-1.1921e-07,  5.9811e-01],
+    //     [ 1.0701e+00,  5.9811e-01]]], device='cuda:0',
+    //   grad_fn=<SliceBackward0>) [25/04 23:46:25]
+    float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+        float2 test_ab = {0, 0};
+        printf("*********************************\n");
+        printf("%d\n", res_control_points_u);
+        printf("%d\n", res_control_points_v);
+        printf("*********************************\n");
+        printf("%f\n", ab_u);
+        printf("%f\n", ab_v);
+        printf("*********************************\n");
+        printf("%f\n", ab.x);
+        printf("%f\n", ab.y);
+        printf("%f\n", mapping_point.x);
+        printf("%f\n", mapping_point.y);
+        printf("*********************************\n");
+    }
+    if (u_idx > 0 && u_idx < res_control_points_u - 1 && v_idx > 0 && v_idx < res_control_points_v - 1) {
+        float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
+        p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
+    }
+    //---------------------------------------------------------------//
 
     // use neuralens
     //---------------------------------------------------------------//
@@ -537,8 +605,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	depths[idx] = p_view.z;
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
-	means2Dx[idx] = p_hom.z;
-	means2Dy[idx] = p_hom.w;
+	means2Dx[idx] = ab.x;
+	means2Dy[idx] = ab.y;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
@@ -728,6 +796,8 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
 	const float* displacement_p_w2c,
+	const float* control_points,
+	const float* boundary_original_points,
 	const float* distortion_params,
 	const float* affine_coeff,
 	const float* poly_coeff,
@@ -742,6 +812,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const glm::vec3* cam_pos,
 	const int W, int H,
 	const int res_u, int res_v,
+	const int res_control_points_u, int res_control_points_v,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
 	int* radii,
@@ -768,6 +839,8 @@ void FORWARD::preprocess(int P, int D, int M,
 		cov3D_precomp,
 		colors_precomp,
         displacement_p_w2c,
+        control_points,
+        boundary_original_points,
         distortion_params,
         affine_coeff, 
         poly_coeff,
@@ -782,6 +855,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		cam_pos,
 		W, H,
 	    res_u, res_v,
+	    res_control_points_u, res_control_points_v,
 		tan_fovx, tan_fovy,
 		focal_x, focal_y,
 		radii,

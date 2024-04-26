@@ -545,6 +545,8 @@ __global__ void preprocessCUDA(
 	const float* proj,
 	const float* intrinsic,
 	const float* displacement_p_w2c,
+	const float* control_points,
+	const float* boundary_original_points,
 	const float* distortion_params,
 	const float* u_distortion,
 	const float* v_distortion,
@@ -563,6 +565,7 @@ __global__ void preprocessCUDA(
 	glm::vec4* dL_drot,
     float* dL_dprojmatrix,
     float* dL_ddisplacement_p_w2c,
+    float* dL_dcontrol_points,
     float* dL_ddistortion_params,
     float* dL_daffine,
     float* dL_dpoly,
@@ -608,7 +611,7 @@ __global__ void preprocessCUDA(
 	float3 m_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 
     // Applay omnidirectional model
-    float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
+    //float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
     //m_w2c = omnidirectionalDistortion_back(ab, m_w2c.z, affine_coeff, poly_coeff);
     // Apply neuralens
     //m_w2c = applyNeuralens_back(ab, m_w2c.z, res_u, res_v, u_distortion, v_distortion);
@@ -1094,6 +1097,8 @@ void BACKWARD::preprocess(
 	const float* projmatrix,
 	const float* intrinsic,
     const float* displacement_p_w2c,
+    const float* control_points,
+    const float* boundary_original_points,
     const float* distortion_params,
 	const float* u_distortion,
 	const float* v_distortion,
@@ -1116,6 +1121,7 @@ void BACKWARD::preprocess(
 	float* dL_dprojmatrix,
 	float* dL_dviewmatrix,
     float* dL_ddisplacement_p_w2c,
+    float* dL_dcontrol_points,
     float* dL_ddistortion_params,
     float* dL_daffine,
     float* dL_dpoly,
@@ -1168,6 +1174,8 @@ void BACKWARD::preprocess(
 		projmatrix,
 		intrinsic,
         displacement_p_w2c,
+        control_points,
+        boundary_original_points,
         distortion_params,
         u_distortion,
         v_distortion,
@@ -1186,6 +1194,7 @@ void BACKWARD::preprocess(
         dL_drot,
 		dL_dprojmatrix,
         dL_ddisplacement_p_w2c,
+        dL_dcontrol_points,
         dL_ddistortion_params,
         dL_daffine,
         dL_dpoly,
