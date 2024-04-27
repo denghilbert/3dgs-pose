@@ -553,6 +553,7 @@ __global__ void preprocessCUDA(
 	const float* affine_coeff,
 	const float* poly_coeff,
 	const int res_u, int res_v,
+	const int res_control_points_u, int res_control_points_v,
     const int image_height, int image_width,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
@@ -620,6 +621,49 @@ __global__ void preprocessCUDA(
     float4 m_hom = transformPoint4x4(m_w2c, intrinsic);
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
+
+
+    // Backward of control points
+    //---------------------------------------------------------------//
+    float2 ab = {m_w2c.x / m_w2c.z, m_w2c.y / m_w2c.z};
+    float ab_u = ((ab.x + boundary_original_points[0]) / (2. * boundary_original_points[0])) * (res_control_points_u - 1);
+    float ab_v = ((ab.y + boundary_original_points[1]) / (2. * boundary_original_points[1])) * (res_control_points_v - 1);
+    int u_idx = int(ab_u);
+    int v_idx = int(ab_v);
+    float4 ABCD;
+
+    if (ab.x > -boundary_original_points[0] && ab.x < boundary_original_points[0] && ab.y > -boundary_original_points[1] && ab.y < boundary_original_points[1]) {
+        ABCD = bilinearInterpolateWeights(u_idx, v_idx, ab_u, ab_v);
+
+        //float magnitute_x = dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0];
+        //float magnitute_y = dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5];
+        //float magnitute   = sqrt(magnitute_x * magnitute_x + magnitute_y * magnitute_y);
+
+        //float sign = (ab.x * dL_dmean2D[idx].x + ab.y * dL_dmean2D[idx].y) > 0 ? 1: -1;
+
+        //float cos_theta = ab.x / sqrt(ab.x * ab.x + ab.y * ab.y);
+        //float sin_theta = ab.y / sqrt(ab.x * ab.x + ab.y * ab.y);
+
+        //dL_dcontrol_points[2 * (u_idx + v_idx * res_control_points_u) + 0]           += magnitute * sign * cos_theta * ABCD.x;
+        //dL_dcontrol_points[2 * (u_idx + 1 + v_idx * res_control_points_u) + 0]       += magnitute * sign * cos_theta * ABCD.y;
+        //dL_dcontrol_points[2 * (u_idx + (v_idx + 1) * res_control_points_u) + 0]     += magnitute * sign * cos_theta * ABCD.z;
+        //dL_dcontrol_points[2 * (u_idx + 1 + (v_idx + 1) * res_control_points_u) + 0] += magnitute * sign * cos_theta * ABCD.w;
+        //dL_dcontrol_points[2 * (u_idx + v_idx * res_control_points_u) + 1]           += magnitute * sign * sin_theta * ABCD.x;
+        //dL_dcontrol_points[2 * (u_idx + 1 + v_idx * res_control_points_u) + 1]       += magnitute * sign * sin_theta * ABCD.y;
+        //dL_dcontrol_points[2 * (u_idx + (v_idx + 1) * res_control_points_u) + 1]     += magnitute * sign * sin_theta * ABCD.z;
+        //dL_dcontrol_points[2 * (u_idx + 1 + (v_idx + 1) * res_control_points_u) + 1] += magnitute * sign * sin_theta * ABCD.w;
+
+        dL_dcontrol_points[2 * (u_idx + v_idx * res_control_points_u) + 0]           += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.x;
+        dL_dcontrol_points[2 * (u_idx + 1 + v_idx * res_control_points_u) + 0]       += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.y;
+        dL_dcontrol_points[2 * (u_idx + (v_idx + 1) * res_control_points_u) + 0]     += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.z;
+        dL_dcontrol_points[2 * (u_idx + 1 + (v_idx + 1) * res_control_points_u) + 0] += dL_dmean2D[idx].x * (image_width / 2) * intrinsic[0] * ABCD.w;
+        dL_dcontrol_points[2 * (u_idx + v_idx * res_control_points_u) + 1]           += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] * ABCD.x;
+        dL_dcontrol_points[2 * (u_idx + 1 + v_idx * res_control_points_u) + 1]       += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] * ABCD.y;
+        dL_dcontrol_points[2 * (u_idx + (v_idx + 1) * res_control_points_u) + 1]     += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] * ABCD.z;
+        dL_dcontrol_points[2 * (u_idx + 1 + (v_idx + 1) * res_control_points_u) + 1] += dL_dmean2D[idx].y * (image_height / 2) * intrinsic[5] * ABCD.w;
+    }
+    //---------------------------------------------------------------//
+
 
     // backward of neuralens
     //---------------------------------------------------------------//
@@ -1105,6 +1149,7 @@ void BACKWARD::preprocess(
     const float* affine_coeff,
     const float* poly_coeff,
 	const int res_u, int res_v,
+	const int res_control_points_u, int res_control_points_v,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
     const int image_height, int image_width,
@@ -1182,6 +1227,7 @@ void BACKWARD::preprocess(
         affine_coeff, 
         poly_coeff,
         res_u, res_v,
+        res_control_points_u, res_control_points_v,
         image_height, image_width,
 		campos,
 		(float3*)dL_dmean2D,

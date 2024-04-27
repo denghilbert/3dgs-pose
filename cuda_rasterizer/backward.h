@@ -65,6 +65,7 @@ namespace BACKWARD
         const float* affine_coeff,
         const float* poly_coeff,
 	    const int res_u, int res_v,
+	    const int res_control_points_u, int res_control_points_v,
 		const float focal_x, float focal_y,
 		const float tan_fovx, float tan_fovy,
         const int image_height, int image_width,

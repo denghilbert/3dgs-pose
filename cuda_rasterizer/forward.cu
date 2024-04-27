@@ -385,6 +385,38 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	//float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
 	float3 p_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 
+
+    // forward of control points
+    //---------------------------------------------------------------//
+    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    float ab_u = ((ab.x + boundary_original_points[0]) / (2. * boundary_original_points[0])) * (res_control_points_u - 1);
+    float ab_v = ((ab.y + boundary_original_points[1]) / (2. * boundary_original_points[1])) * (res_control_points_v - 1);
+    int u_idx = int(ab_u);
+    int v_idx = int(ab_v);
+
+    if (ab.x > -boundary_original_points[0] && ab.x < boundary_original_points[0] && ab.y > -boundary_original_points[1] && ab.y < boundary_original_points[1]) {
+        float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
+        p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
+        //if (threadIdx.x < 20 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+        //    printf("*********************************\n");
+        //    printf("%d\n", res_control_points_u);
+        //    printf("%d\n", res_control_points_v);
+        //    printf("*********************************\n");
+        //    printf("%f\n", ab.x);
+        //    printf("%f\n", ab.y);
+        //    printf("%f\n", boundary_original_points[0]);
+        //    printf("%f\n", boundary_original_points[1]);
+        //    printf("*********************************\n");
+        //    printf("%f\n", ab_u);
+        //    printf("%f\n", ab_v);
+        //    printf("*********************************\n");
+        //    printf("%f\n", ab.x - mapping_point.x);
+        //    printf("%f\n", ab.y - mapping_point.y);
+        //    printf("*********************************\n");
+        //}
+    }
+    //---------------------------------------------------------------//
+
     // forward of omnidirectional camera model
     //---------------------------------------------------------------//
     // implementation of omnidirectional camera model distortion
@@ -393,49 +425,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // Both are the same!
     //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
     //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
-    //---------------------------------------------------------------//
-
-
-    // forward of control points
-    //---------------------------------------------------------------//
-    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    float ab_u = (ab.x / boundary_original_points[0] + 1) * ((res_control_points_u) / 2);
-    float ab_v = (ab.y / boundary_original_points[1] + 1) * ((res_control_points_v) / 2);
-    int u_idx = int(ab_u);
-    int v_idx = int(ab_v);
-
-    //tensor([[[-1.0701e+00, -5.9811e-01],
-    //     [-1.1921e-07, -5.9811e-01],
-    //     [ 1.0701e+00, -5.9811e-01]],
-
-    //    [[-1.0701e+00, -5.9605e-08],
-    //     [-1.1921e-07, -1.1921e-07],
-    //     [ 1.0701e+00, -1.1921e-07]],
-
-    //    [[-1.0701e+00,  5.9811e-01],
-    //     [-1.1921e-07,  5.9811e-01],
-    //     [ 1.0701e+00,  5.9811e-01]]], device='cuda:0',
-    //   grad_fn=<SliceBackward0>) [25/04 23:46:25]
-    float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
-    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-        float2 test_ab = {0, 0};
-        printf("*********************************\n");
-        printf("%d\n", res_control_points_u);
-        printf("%d\n", res_control_points_v);
-        printf("*********************************\n");
-        printf("%f\n", ab_u);
-        printf("%f\n", ab_v);
-        printf("*********************************\n");
-        printf("%f\n", ab.x);
-        printf("%f\n", ab.y);
-        printf("%f\n", mapping_point.x);
-        printf("%f\n", mapping_point.y);
-        printf("*********************************\n");
-    }
-    if (u_idx > 0 && u_idx < res_control_points_u - 1 && v_idx > 0 && v_idx < res_control_points_v - 1) {
-        float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
-        p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
-    }
     //---------------------------------------------------------------//
 
     // use neuralens

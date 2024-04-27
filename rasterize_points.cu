@@ -259,6 +259,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  background.contiguous().data<float>(),
 	  W, H, 
       res_u, res_v,
+      res_control_points_u, res_control_points_v,
 	  means3D.contiguous().data<float>(),
 	  sh.contiguous().data<float>(),
 	  colors.contiguous().data<float>(),
