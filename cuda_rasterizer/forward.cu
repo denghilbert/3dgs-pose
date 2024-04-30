@@ -247,12 +247,13 @@ __device__ float2 bilinearInterpolateControlPoints(int x, int y, const int res_u
 
     // Interpolate u
     float up = A * control_points[2 * (x + y * res_u) + 0] + B * control_points[2 * (x + 1 + y * res_u) + 0] + C * control_points[2 * (x + (y + 1) * res_u) + 0] + D * control_points[2 * (x + 1 + (y + 1) * res_u) + 0];
-                                                                                                                                                                                                             
-    // Interpolate v                                                                                                                                                                                         
+
+    // Interpolate v
     float vp = A * control_points[2 * (x + y * res_u) + 1] + B * control_points[2 * (x + 1 + y * res_u) + 1] + C * control_points[2 * (x + (y + 1) * res_u) + 1] + D * control_points[2 * (x + 1 + (y + 1) * res_u) + 1];
 
 	return {up, vp};
 }
+
 
 // Omnidirectional camera distortion
 __device__ float3 omnidirectionalDistortion_OPENCV(float2 ab, float z, const float* affine_coeff, const float* poly_coeff) {
@@ -385,36 +386,35 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	//float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
 	float3 p_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 
-
     // forward of control points
     //---------------------------------------------------------------//
-    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    float ab_u = ((ab.x + boundary_original_points[0]) / (2. * boundary_original_points[0])) * (res_control_points_u - 1);
-    float ab_v = ((ab.y + boundary_original_points[1]) / (2. * boundary_original_points[1])) * (res_control_points_v - 1);
-    int u_idx = int(ab_u);
-    int v_idx = int(ab_v);
+    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    //float ab_u = ((ab.x + boundary_original_points[0]) / (2. * boundary_original_points[0])) * (res_control_points_u - 1);
+    //float ab_v = ((ab.y + boundary_original_points[1]) / (2. * boundary_original_points[1])) * (res_control_points_v - 1);
+    //int u_idx = int(ab_u);
+    //int v_idx = int(ab_v);
 
-    if (ab.x > -boundary_original_points[0] && ab.x < boundary_original_points[0] && ab.y > -boundary_original_points[1] && ab.y < boundary_original_points[1]) {
-        float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
-        p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
-        //if (threadIdx.x < 20 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-        //    printf("*********************************\n");
-        //    printf("%d\n", res_control_points_u);
-        //    printf("%d\n", res_control_points_v);
-        //    printf("*********************************\n");
-        //    printf("%f\n", ab.x);
-        //    printf("%f\n", ab.y);
-        //    printf("%f\n", boundary_original_points[0]);
-        //    printf("%f\n", boundary_original_points[1]);
-        //    printf("*********************************\n");
-        //    printf("%f\n", ab_u);
-        //    printf("%f\n", ab_v);
-        //    printf("*********************************\n");
-        //    printf("%f\n", ab.x - mapping_point.x);
-        //    printf("%f\n", ab.y - mapping_point.y);
-        //    printf("*********************************\n");
-        //}
-    }
+    //if (ab.x > -boundary_original_points[0] && ab.x < boundary_original_points[0] && ab.y > -boundary_original_points[1] && ab.y < boundary_original_points[1]) {
+    //    float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
+    //    p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
+    //    //if (threadIdx.x < 20 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //    //    printf("*********************************\n");
+    //    //    printf("%d\n", res_control_points_u);
+    //    //    printf("%d\n", res_control_points_v);
+    //    //    printf("*********************************\n");
+    //    //    printf("%f\n", ab.x);
+    //    //    printf("%f\n", ab.y);
+    //    //    printf("%f\n", boundary_original_points[0]);
+    //    //    printf("%f\n", boundary_original_points[1]);
+    //    //    printf("*********************************\n");
+    //    //    printf("%f\n", ab_u);
+    //    //    printf("%f\n", ab_v);
+    //    //    printf("*********************************\n");
+    //    //    printf("%f\n", ab.x - mapping_point.x);
+    //    //    printf("%f\n", ab.y - mapping_point.y);
+    //    //    printf("*********************************\n");
+    //    //}
+    //}
     //---------------------------------------------------------------//
 
     // forward of omnidirectional camera model
@@ -423,29 +423,24 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // originally, gs first apply intrinsic (K) to p_w2c and use p_proj to get [x'/z', y'/z']
     // in omnidirectional camera, we first get [x/z, y/z] and then apply intrisic
     // Both are the same!
-    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
-    //---------------------------------------------------------------//
-
-    // use neuralens
-    //---------------------------------------------------------------//
-    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    //p_w2c = applyNeuralens(ab, p_w2c.z, res_u, res_v, u_distortion, v_distortion);
+    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    //p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
+    p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     //---------------------------------------------------------------//
 
 
-    // forward of raidal table
+    // forward of radial table
     //---------------------------------------------------------------//
-    //float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
-    //int x1 = int((theta / 1.57079632679) * 1000);
-    //int x_2 = int((theta / 1.57079632679) * 1000) + 1;
-    //float x = (theta / 1.57079632679) * 1000;
-    //if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
-    //    float y1 = radial[x1];
-    //    float y_2 = radial[x_2];
-    //    p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
-    //    p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
-    //}
+    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    int x1 = int((theta / 1.57079632679) * 1000);
+    int x_2 = int((theta / 1.57079632679) * 1000) + 1;
+    float x = (theta / 1.57079632679) * 1000;
+    if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
+        float y1 = radial[x1];
+        float y_2 = radial[x_2];
+        p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+        p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+    }
     //---------------------------------------------------------------//
     
 
@@ -472,23 +467,23 @@ __global__ void preprocessCUDA(int P, int D, int M,
     //    printf("*********************************\n");
     //}
 
-    // forward of grid
+    // backward of grid
     //---------------------------------------------------------------//
     // pay a special attention to u_distortion index
     // u_distortion[u, v] represents the displacement at (u, v)
     // the index should be v * W + u
-    //int u_idx = int((p_proj.x + 1) * (res_u / 2));
-    //int v_idx = int((p_proj.y + 1) * (res_v / 2));
-    //float2 uv_displacement;
-    //float2 uv_radial;
-    //
-    //if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
-    //    uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
-    //    uv_radial = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_radial, v_radial, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
-    //}
-    //
-    //p_proj.x = p_proj.x * uv_radial.x + uv_displacement.x;
-    //p_proj.y = p_proj.y * uv_radial.y + uv_displacement.y;
+    int u_idx = int((p_proj.x + 1) * (res_u / 2));
+    int v_idx = int((p_proj.y + 1) * (res_v / 2));
+    float2 uv_displacement;
+    float2 uv_radial;
+    
+    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+        uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+        uv_radial = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_radial, v_radial, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+    }
+    
+    p_proj.x = p_proj.x * uv_radial.x + uv_displacement.x;
+    p_proj.y = p_proj.y * uv_radial.y + uv_displacement.y;
 
     // check bilinear interpolation position
     //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
@@ -513,32 +508,32 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// forward of 8 params distortion
     //---------------------------------------------------------------//
     // Apply 2D distortion to p_proj
-    //float k1 = distortion_params[0];
-    //float k2 = distortion_params[1];
-    //float k3 = distortion_params[2];
-    //float k4 = distortion_params[3];
-    //float k5 = distortion_params[4];
-    //float k6 = distortion_params[5];
-    //float p1 = distortion_params[6];
-    //float p2 = distortion_params[7];
-    //
-    //float x2 = p_proj.x * p_proj.x;
-    //float y2 = p_proj.y * p_proj.y;
-    //float r2 = x2 + y2;
-    //float _2xy = float(2) * p_proj.x * p_proj.y;
+    float k1 = distortion_params[0];
+    float k2 = distortion_params[1];
+    float k3 = distortion_params[2];
+    float k4 = distortion_params[3];
+    float k5 = distortion_params[4];
+    float k6 = distortion_params[5];
+    float p1 = distortion_params[6];
+    float p2 = distortion_params[7];
+    
+    float x2 = p_proj.x * p_proj.x;
+    float y2 = p_proj.y * p_proj.y;
+    float r2 = x2 + y2;
+    float _2xy = float(2) * p_proj.x * p_proj.y;
 
-    //// The forward distortion fails if the points are too far away on the image plain
-    //if (r2 < 2){
-    //    float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
-    //    float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
-    //    float radial   = (radial_u / radial_v);
+    // The forward distortion fails if the points are too far away on the image plain
+    if (r2 < 2){
+        float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
+        float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
+        float radial   = (radial_u / radial_v);
 
-    //    float tangentialX = p1 * _2xy + p2 * (r2 + float(2) * x2);
-    //    float tangentialY = p1 * (r2 + float(2) * y2) + p2 * _2xy;
+        float tangentialX = p1 * _2xy + p2 * (r2 + float(2) * x2);
+        float tangentialY = p1 * (r2 + float(2) * y2) + p2 * _2xy;
 
-    //    p_proj.x = p_proj.x * radial + tangentialX;
-    //    p_proj.y = p_proj.y * radial + tangentialY;
-    //}
+        p_proj.x = p_proj.x * radial + tangentialX;
+        p_proj.y = p_proj.y * radial + tangentialY;
+    }
     //---------------------------------------------------------------//
 
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
@@ -594,8 +589,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	depths[idx] = p_view.z;
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
-	means2Dx[idx] = ab.x;
-	means2Dy[idx] = ab.y;
+	means2Dx[idx] = p_hom.z;
+	means2Dy[idx] = p_hom.w;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
