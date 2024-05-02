@@ -388,32 +388,32 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
     // forward of control points
     //---------------------------------------------------------------//
-    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    //float ab_u = ((ab.x + boundary_original_points[0]) / (2. * boundary_original_points[0])) * (res_control_points_u - 1);
-    //float ab_v = ((ab.y + boundary_original_points[1]) / (2. * boundary_original_points[1])) * (res_control_points_v - 1);
-    //int u_idx = int(ab_u);
-    //int v_idx = int(ab_v);
+    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    float ab_u = ((ab.x + boundary_original_points[0]) / (2. * boundary_original_points[0])) * (res_control_points_u - 1);
+    float ab_v = ((ab.y + boundary_original_points[1]) / (2. * boundary_original_points[1])) * (res_control_points_v - 1);
+    int u_idx_ = int(ab_u);
+    int v_idx_ = int(ab_v);
 
-    //if (ab.x > -boundary_original_points[0] && ab.x < boundary_original_points[0] && ab.y > -boundary_original_points[1] && ab.y < boundary_original_points[1]) {
-    //    float2 mapping_point = bilinearInterpolateControlPoints(u_idx, v_idx, res_control_points_u, control_points, ab_u, ab_v);
-    //    p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
-    //    //if (threadIdx.x < 20 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-    //    //    printf("*********************************\n");
-    //    //    printf("%d\n", res_control_points_u);
-    //    //    printf("%d\n", res_control_points_v);
-    //    //    printf("*********************************\n");
-    //    //    printf("%f\n", ab.x);
-    //    //    printf("%f\n", ab.y);
-    //    //    printf("%f\n", boundary_original_points[0]);
-    //    //    printf("%f\n", boundary_original_points[1]);
-    //    //    printf("*********************************\n");
-    //    //    printf("%f\n", ab_u);
-    //    //    printf("%f\n", ab_v);
-    //    //    printf("*********************************\n");
-    //    //    printf("%f\n", ab.x - mapping_point.x);
-    //    //    printf("%f\n", ab.y - mapping_point.y);
-    //    //    printf("*********************************\n");
-    //    //}
+    float2 mapping_point;
+    if (ab.x > -boundary_original_points[0] && ab.x < boundary_original_points[0] && ab.y > -boundary_original_points[1] && ab.y < boundary_original_points[1]) {
+        mapping_point = bilinearInterpolateControlPoints(u_idx_, v_idx_, res_control_points_u, control_points, ab_u, ab_v);
+        p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
+
+        //float2 test1 = bilinearInterpolateControlPoints(u_idx_, v_idx_, res_control_points_u, control_points, ab_u, ab_v);
+        //float3 test2_tmp = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
+        //float2 test2 = {test2_tmp.x / test2_tmp.z, test2_tmp.y / test2_tmp.z};
+        //if (threadIdx.x < 1000 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+        //    //printf("*********************************\n");
+        //    //printf("%f\n", ab.x - mapping_point.x);
+        //    //printf("%f\n", ab.y - mapping_point.y);
+        //    //printf("*********************************\n");
+        //    printf("%f\n", test1.x - test2.x);
+        //    printf("%f\n", test1.y - test2.y);
+        //    //printf("*********************************\n");
+        //}
+    }
+    //else {
+    //    p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     //}
     //---------------------------------------------------------------//
 
@@ -423,9 +423,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // originally, gs first apply intrinsic (K) to p_w2c and use p_proj to get [x'/z', y'/z']
     // in omnidirectional camera, we first get [x/z, y/z] and then apply intrisic
     // Both are the same!
-    float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
-    //p_w2c = omnidirectionalDistortion(ab, p_w2c.z, affine_coeff, poly_coeff);
-    p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
+    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    //p_w2c = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
     //---------------------------------------------------------------//
 
 
@@ -591,6 +590,8 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	points_xy_image[idx] = point_image;
 	means2Dx[idx] = p_hom.z;
 	means2Dy[idx] = p_hom.w;
+	//means2Dx[idx] = ab.x - mapping_point.x;
+	//means2Dy[idx] = ab.y - mapping_point.y;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);

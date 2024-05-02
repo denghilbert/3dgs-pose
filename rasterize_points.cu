@@ -154,7 +154,7 @@ RasterizeGaussiansCUDA(
   return std::make_tuple(rendered, out_color, out_depth, out_alpha, radii, geomBuffer, binningBuffer, imgBuffer, means2Dx, means2Dy);
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
  	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -208,6 +208,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 
   torch::Tensor dL_dmeans3D = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_dmeans2D = torch::zeros({P, 3}, means3D.options());
+  torch::Tensor dL_dmeans2D_densify = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_dcolors = torch::zeros({P, NUM_CHANNELS}, means3D.options());
   torch::Tensor dL_ddepths = torch::zeros({P, 1}, means3D.options());
   torch::Tensor dL_dconic = torch::zeros({P, 2, 2}, means3D.options());
@@ -292,6 +293,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  dL_dout_depth.contiguous().data<float>(),
 	  dL_dout_alpha.contiguous().data<float>(),
 	  dL_dmeans2D.contiguous().data<float>(),
+      dL_dmeans2D_densify.contiguous().data<float>(),
 	  dL_dconic.contiguous().data<float>(),  
 	  covariance.contiguous().data<float>(),  
 	  dL_dopacity.contiguous().data<float>(),
@@ -338,7 +340,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   //std::cout << (covariance / covariance.sum())[0];
   //std::cout << (dL_dviewmatrix * (covariance / covariance.sum()))[0];
   //return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, (dL_dcampos * (covariance / covariance.sum())).sum(0), (dL_dprojmatrix * (covariance / covariance.sum())).sum(0), (dL_dviewmatrix * (covariance / covariance.sum())).sum(0), covariance + 1e-4f);
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0), covariance + 1e-4f, dL_dcontrol_points, dL_ddisplacement_p_w2c, dL_ddistortion_params.mean(0), dL_du_distortion, dL_dv_distortion, dL_du_radial, dL_dv_radial, dL_daffine.mean(0), dL_dpoly.mean(0), dL_dradial);
+  return std::make_tuple(dL_dmeans2D, dL_dmeans2D_densify, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, dL_dcampos.mean(0), dL_dprojmatrix.mean(0), dL_dviewmatrix.mean(0), covariance + 1e-4f, dL_dcontrol_points, dL_ddisplacement_p_w2c, dL_ddistortion_params.mean(0), dL_du_distortion, dL_dv_distortion, dL_du_radial, dL_dv_radial, dL_daffine.mean(0), dL_dpoly.mean(0), dL_dradial);
   //return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations, (dL_dcampos * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), (dL_dprojmatrix * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), (dL_dviewmatrix * ((1e-2f / (covariance + 1e-4f)) / (1e-2f / (covariance + 1e-4f)).sum())).sum(0), covariance);
 }
 
