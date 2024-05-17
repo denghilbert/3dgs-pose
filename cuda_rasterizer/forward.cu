@@ -386,6 +386,21 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	//float3 p_w2c = transformPoint4x3(p_orig, viewmatrix);
 	float3 p_w2c = {displacement_p_w2c[4 * idx], displacement_p_w2c[4 * idx + 1], displacement_p_w2c[4 * idx + 2]};
 
+    // implement only for llff
+    //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
+    //float x2 = ab.x * ab.x;
+    //float y2 = ab.y * ab.y;
+    //float r2 = x2 + y2;
+    //if (r2 < 2) {
+    //    // room
+    //    //float wtf = -0.5882877287895939 * r2 + 0.40174065051468477 * r2 * r2;
+    //    // fern
+    //    float wtf = -0.8794442879124985 * r2 + 1.0081900208012675 * r2 * r2;
+    //    p_w2c = {ab.x * (1 + wtf) * p_w2c.z, ab.y * (1 + wtf) * p_w2c.z, p_w2c.z};
+    //}
+
+
+
     // forward of control points
     //---------------------------------------------------------------//
     float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
@@ -399,9 +414,16 @@ __global__ void preprocessCUDA(int P, int D, int M,
         mapping_point = bilinearInterpolateControlPoints(u_idx_, v_idx_, res_control_points_u, control_points, ab_u, ab_v);
         p_w2c = {mapping_point.x * p_w2c.z, mapping_point.y * p_w2c.z, p_w2c.z};
 
-        //float2 test1 = bilinearInterpolateControlPoints(u_idx_, v_idx_, res_control_points_u, control_points, ab_u, ab_v);
-        //float3 test2_tmp = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
+        //// check llff
+        //float x2 = ab.x * ab.x;
+        //float y2 = ab.y * ab.y;
+        //float r2 = x2 + y2;
+        //float wtf = -0.6952201430141931 * r2 + 0.5931150189831125 * r2 * r2;
+        //float3 test2_tmp = {ab.x * (1 + wtf) * p_w2c.z, ab.y * (1 + wtf) * p_w2c.z, p_w2c.z};
+        //// check fisheye dataset
+        ////float3 test2_tmp = omnidirectionalDistortion_OPENCV(ab, p_w2c.z, affine_coeff, poly_coeff);
         //float2 test2 = {test2_tmp.x / test2_tmp.z, test2_tmp.y / test2_tmp.z};
+        //float2 test1 = bilinearInterpolateControlPoints(u_idx_, v_idx_, res_control_points_u, control_points, ab_u, ab_v);
         //if (threadIdx.x < 1000 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
         //    //printf("*********************************\n");
         //    //printf("%f\n", ab.x - mapping_point.x);
@@ -430,16 +452,16 @@ __global__ void preprocessCUDA(int P, int D, int M,
 
     // forward of radial table
     //---------------------------------------------------------------//
-    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
-    int x1 = int((theta / 1.57079632679) * 1000);
-    int x_2 = int((theta / 1.57079632679) * 1000) + 1;
-    float x = (theta / 1.57079632679) * 1000;
-    if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
-        float y1 = radial[x1];
-        float y_2 = radial[x_2];
-        p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
-        p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
-    }
+    //float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    //int x1 = int((theta / 1.57079632679) * 1000);
+    //int x_2 = int((theta / 1.57079632679) * 1000) + 1;
+    //float x = (theta / 1.57079632679) * 1000;
+    //if (x1 < 1000 && x1 >= 0 && x_2 < 1000 && x_2 >= 0) {
+    //    float y1 = radial[x1];
+    //    float y_2 = radial[x_2];
+    //    p_w2c.x = p_w2c.x * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+    //    p_w2c.y = p_w2c.y * (y1 + ((x - x1) * (y_2 - y1)) / (x_2 - x1));
+    //}
     //---------------------------------------------------------------//
     
 
@@ -471,18 +493,18 @@ __global__ void preprocessCUDA(int P, int D, int M,
     // pay a special attention to u_distortion index
     // u_distortion[u, v] represents the displacement at (u, v)
     // the index should be v * W + u
-    int u_idx = int((p_proj.x + 1) * (res_u / 2));
-    int v_idx = int((p_proj.y + 1) * (res_v / 2));
-    float2 uv_displacement;
-    float2 uv_radial;
-    
-    if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
-        uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
-        uv_radial = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_radial, v_radial, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
-    }
-    
-    p_proj.x = p_proj.x * uv_radial.x + uv_displacement.x;
-    p_proj.y = p_proj.y * uv_radial.y + uv_displacement.y;
+    //int u_idx = int((p_proj.x + 1) * (res_u / 2));
+    //int v_idx = int((p_proj.y + 1) * (res_v / 2));
+    //float2 uv_displacement;
+    //float2 uv_radial;
+    //
+    //if (u_idx > 0 && u_idx < (res_u - 1) && v_idx > 0 && v_idx < (res_v - 1)) {
+    //    uv_displacement = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_distortion, v_distortion, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+    //    uv_radial = bilinearInterpolateKernel(u_idx, v_idx, res_u, u_radial, v_radial, (p_proj.x + 1) * (res_u / 2), (p_proj.y + 1) * (res_v / 2));
+    //}
+    //
+    //p_proj.x = p_proj.x * uv_radial.x + uv_displacement.x;
+    //p_proj.y = p_proj.y * uv_radial.y + uv_displacement.y;
 
     // check bilinear interpolation position
     //if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
@@ -507,32 +529,32 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// forward of 8 params distortion
     //---------------------------------------------------------------//
     // Apply 2D distortion to p_proj
-    float k1 = distortion_params[0];
-    float k2 = distortion_params[1];
-    float k3 = distortion_params[2];
-    float k4 = distortion_params[3];
-    float k5 = distortion_params[4];
-    float k6 = distortion_params[5];
-    float p1 = distortion_params[6];
-    float p2 = distortion_params[7];
-    
-    float x2 = p_proj.x * p_proj.x;
-    float y2 = p_proj.y * p_proj.y;
-    float r2 = x2 + y2;
-    float _2xy = float(2) * p_proj.x * p_proj.y;
+    //float k1 = distortion_params[0];
+    //float k2 = distortion_params[1];
+    //float k3 = distortion_params[2];
+    //float k4 = distortion_params[3];
+    //float k5 = distortion_params[4];
+    //float k6 = distortion_params[5];
+    //float p1 = distortion_params[6];
+    //float p2 = distortion_params[7];
+    //
+    //float x2 = p_proj.x * p_proj.x;
+    //float y2 = p_proj.y * p_proj.y;
+    //float r2 = x2 + y2;
+    //float _2xy = float(2) * p_proj.x * p_proj.y;
 
-    // The forward distortion fails if the points are too far away on the image plain
-    if (r2 < 2){
-        float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
-        float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
-        float radial   = (radial_u / radial_v);
+    //// The forward distortion fails if the points are too far away on the image plain
+    //if (r2 < 2){
+    //    float radial_u = float(1) + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
+    //    float radial_v = float(1) + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
+    //    float radial   = (radial_u / radial_v);
 
-        float tangentialX = p1 * _2xy + p2 * (r2 + float(2) * x2);
-        float tangentialY = p1 * (r2 + float(2) * y2) + p2 * _2xy;
+    //    float tangentialX = p1 * _2xy + p2 * (r2 + float(2) * x2);
+    //    float tangentialY = p1 * (r2 + float(2) * y2) + p2 * _2xy;
 
-        p_proj.x = p_proj.x * radial + tangentialX;
-        p_proj.y = p_proj.y * radial + tangentialY;
-    }
+    //    p_proj.x = p_proj.x * radial + tangentialX;
+    //    p_proj.y = p_proj.y * radial + tangentialY;
+    //}
     //---------------------------------------------------------------//
 
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
