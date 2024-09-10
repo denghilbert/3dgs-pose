@@ -36,6 +36,7 @@ std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torc
 RasterizeGaussiansCUDA(
 	const torch::Tensor& background,
 	const torch::Tensor& means3D,
+	const torch::Tensor& shift_factors,
     const torch::Tensor& colors,
     const torch::Tensor& opacity,
 	const torch::Tensor& scales,
@@ -110,6 +111,7 @@ RasterizeGaussiansCUDA(
 		projmatrix.contiguous().data<float>(),
 		intrinsic.contiguous().data<float>(),
 		campos.contiguous().data<float>(),
+		shift_factors.contiguous().data<float>(),
 		tan_fovx,
 		tan_fovy,
 		prefiltered,

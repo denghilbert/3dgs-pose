@@ -17,12 +17,25 @@ namespace cg = cooperative_groups;
 
 // Forward method for converting the input spherical harmonics
 // coefficients of each Gaussian to a simple RGB color.
-__device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, bool* clamped)
+__device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, bool* clamped, const float* viewmatrix, float entrance_pupil_shift)
 {
 	// The implementation is loosely based on code for 
 	// "Differentiable Point-Based Radiance Fields for 
 	// Efficient View Synthesis" by Zhang et al. (2022)
 	glm::vec3 pos = means[idx];
+	glm::mat4 w2c = glm::mat4(
+		viewmatrix[0], viewmatrix[4], viewmatrix[8], viewmatrix[12],
+		viewmatrix[1], viewmatrix[5], viewmatrix[9], viewmatrix[13],
+		viewmatrix[2], viewmatrix[6], viewmatrix[10], viewmatrix[14],
+		viewmatrix[3], viewmatrix[7], viewmatrix[11], viewmatrix[15]);
+    glm::mat4 c2w = glm::inverse(w2c);
+    glm::vec4 pos_world = glm::vec4(pos[0], pos[1], pos[2], 1.);
+    glm::vec4 pos_camera = pos_world * w2c;
+    pos_camera[2] += entrance_pupil_shift;
+    glm::vec4 pos_world_shift = pos_camera * c2w;
+    pos[0] = pos_world_shift[0];
+    pos[1] = pos_world_shift[1];
+    pos[2] = pos_world_shift[2];
 	glm::vec3 dir = pos - campos;
 
     // check the length function and dir xyz
@@ -83,13 +96,14 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 }
 
 // Forward version of 2D covariance matrix computation
-__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix)
+__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix, float entrance_pupil_shift)
 {
 	// The following models the steps outlined by equations 29
 	// and 31 in "EWA Splatting" (Zwicker et al., 2002). 
 	// Additionally considers aspect / scaling of viewport.
 	// Transposes used to account for row-/column-major conventions.
 	float3 t = transformPoint4x3(mean, viewmatrix);
+    t.z += entrance_pupil_shift;
 
 	const float limx = 1.3f * tan_fovx;
 	const float limy = 1.3f * tan_fovy;
@@ -336,6 +350,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* intrinsic,
+	const float* shift_factors,
 	const glm::vec3* cam_pos,
 	const int W, int H,
 	const float tan_fovx, float tan_fovy,
@@ -369,6 +384,14 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// Transform point by projecting
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
 	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+    float2 ab = {p_hom.x / p_hom.z, p_hom.y / p_hom.z};
+    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    float theta2 = theta * theta;
+    float theta3 = theta2 * theta;
+    float theta5 = theta2 * theta3;
+    float theta7 = theta2 * theta5;
+    float entrance_pupil_shift = shift_factors[0] * theta3 + shift_factors[1] * theta5 + shift_factors[2] * theta7;
+    p_hom.w += entrance_pupil_shift;
 
     // implement only for llff
     //float2 ab = {p_w2c.x / p_w2c.z, p_w2c.y / p_w2c.z};
@@ -554,7 +577,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	}
 
 	// Compute 2D screen-space covariance matrix
-	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
+	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix, entrance_pupil_shift);
 	//float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
 
 	// Invert covariance (EWA algorithm)
@@ -583,7 +606,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// spherical harmonics coefficients to RGB color.
 	if (colors_precomp == nullptr)
 	{
-		glm::vec3 result = computeColorFromSH(idx, D, M, (glm::vec3*)orig_points, *cam_pos, shs, clamped);
+		glm::vec3 result = computeColorFromSH(idx, D, M, (glm::vec3*)orig_points, *cam_pos, shs, clamped, viewmatrix, entrance_pupil_shift);
 		rgb[idx * C + 0] = result.x;
 		rgb[idx * C + 1] = result.y;
 		rgb[idx * C + 2] = result.z;
@@ -789,6 +812,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* projmatrix,
 	const float* intrinsic,
 	const glm::vec3* cam_pos,
+	const float* shift_factors,
 	const int W, int H,
 	const float focal_x, float focal_y,
 	const float tan_fovx, float tan_fovy,
@@ -818,6 +842,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		viewmatrix, 
 		projmatrix,
 		intrinsic,
+        shift_factors,
 		cam_pos,
 		W, H,
 		tan_fovx, tan_fovy,

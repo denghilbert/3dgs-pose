@@ -22,6 +22,7 @@ def rasterize_gaussians(
     means3D,
     means2D,
     means2D_densify,
+    shift_factors,
     sh,
     colors_precomp,
     opacities,
@@ -43,6 +44,7 @@ def rasterize_gaussians(
         raster_settings.viewmatrix,
         raster_settings.campos,
         raster_settings.projmatrix,
+        shift_factors,
         raster_settings,
     )
 
@@ -62,6 +64,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         world_view,
         camera_center,
         full_proj,
+        shift_factors,
         raster_settings,
     ):
 
@@ -69,14 +72,13 @@ class _RasterizeGaussians(torch.autograd.Function):
         args = (
             raster_settings.bg,
             means3D,
+            shift_factors,
             colors_precomp,
             opacities,
             scales,
             rotations,
             raster_settings.scale_modifier,
             cov3Ds_precomp,
-            #raster_settings.viewmatrix,
-            #raster_settings.projmatrix,
             world_view,
             full_proj,
             raster_settings.intrinsic,
@@ -86,7 +88,6 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.image_width,
             sh,
             raster_settings.sh_degree,
-            #raster_settings.campos,
             camera_center,
             raster_settings.prefiltered,
             raster_settings.debug,
@@ -197,6 +198,8 @@ class _RasterizeGaussians(torch.autograd.Function):
         #print(sum((covariance != 0) == True))
         #import pdb;pdb.set_trace()
 
+        grad_shift_factors = None
+
         grads = (
             grad_means3D,
             grad_means2D,
@@ -210,6 +213,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_world_view,
             grad_camera_center,
             grad_full_proj,
+            grad_shift_factors,
             None,
         )
 
@@ -247,7 +251,7 @@ class GaussianRasterizer(nn.Module):
 
         return visible
 
-    def forward(self, means3D, means2D, means2D_densify, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
+    def forward(self, means3D, means2D, means2D_densify, shift_factors, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
 
         raster_settings = self.raster_settings
 
@@ -274,6 +278,7 @@ class GaussianRasterizer(nn.Module):
             means3D,
             means2D,
             means2D_densify,
+            shift_factors,
             shs,
             colors_precomp,
             opacities,
