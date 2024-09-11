@@ -34,7 +34,7 @@ __device__ void checkType<float>(float var) {
 
 // Backward pass for conversion of spherical harmonics to RGB for
 // each Gaussian.
-__device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, const bool* clamped, const glm::vec3* dL_dcolor, glm::vec3* dL_dmeans, glm::vec3* dL_dshs, glm::vec3* dL_dcampos)
+__device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, const bool* clamped, const glm::vec3* dL_dcolor, glm::vec3* dL_dmeans, glm::vec3* dL_dshs, glm::vec3* dL_dcampos, glm::vec3* dL_dshift)
 {
 	// Compute intermediate values, as it is done during forward
 	glm::vec3 pos = means[idx];
@@ -179,10 +179,12 @@ __global__ void computeCov2DCUDA(int P,
 	const float h_x, float h_y,
 	const float tan_fovx, float tan_fovy,
 	const float* view_matrix,
+	const float* proj_matrix,
 	const float* dL_dconics,
 	float3* dL_dmeans,
 	float* dL_dcov,
 	float* dL_dviewmatrix,
+	glm::vec3* dL_dshift,
     float* dL_ddepths,
 	const float* intrinsic)
 {
@@ -198,7 +200,7 @@ __global__ void computeCov2DCUDA(int P,
 	float3 mean = means[idx];
 	float3 dL_dconic = { dL_dconics[4 * idx], dL_dconics[4 * idx + 1], dL_dconics[4 * idx + 3] };
 	float3 t = transformPoint4x3(mean, view_matrix);
-	
+
 	const float limx = 1.3f * tan_fovx;
 	const float limy = 1.3f * tan_fovy;
 	const float txtz = t.x / t.z;
@@ -323,6 +325,18 @@ __global__ void computeCov2DCUDA(int P,
 	float dL_dtx = x_grad_mul * -h_x * tz2 * dL_dJ02;
 	float dL_dty = y_grad_mul * -h_y * tz2 * dL_dJ12;
 	float dL_dtz = -h_x * tz2 * dL_dJ00 - h_y * tz2 * dL_dJ11 + (2 * h_x * t.x) * tz3 * dL_dJ02 + (2 * h_y * t.y) * tz3 * dL_dJ12;
+
+    // For entrance pupil shift gradient
+	float4 p_hom = transformPoint4x4(mean, proj_matrix);
+    float2 ab = {p_hom.x / p_hom.w, p_hom.y / p_hom.w};
+    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    float theta2 = theta * theta;
+    float theta3 = theta2 * theta;
+    float theta5 = theta2 * theta3;
+    float theta7 = theta2 * theta5;
+
+	dL_dshift[idx] += glm::vec3(dL_dtz * theta3, dL_dtz * theta5, dL_dtz * theta7);
+	
 
     // Gradients of loss w.r.t. viewmatrix
     // T = W * J
@@ -555,7 +569,8 @@ __global__ void preprocessCUDA(
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot,
     float* dL_dprojmatrix,
-    glm::vec3* dL_dcampos)
+    glm::vec3* dL_dcampos,
+    glm::vec3* dL_dshift)
 {
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P || !(radii[idx] > 0))
@@ -592,6 +607,12 @@ __global__ void preprocessCUDA(
 	float m_w = 1.0f / (m_hom.w + 0.0000001f);
 	float3 p_proj = { m_hom.x * m_w, m_hom.y * m_w, m_hom.z * m_w };
 
+    float2 ab = {m_hom.x / m_hom.w, m_hom.y / m_hom.w};
+    float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
+    float theta2 = theta * theta;
+    float theta3 = theta2 * theta;
+    float theta5 = theta2 * theta3;
+    float theta7 = theta2 * theta5;
 
     // Backward of control points
     //---------------------------------------------------------------//
@@ -813,6 +834,13 @@ __global__ void preprocessCUDA(
 	//dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
 	//dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
 
+    //Compute the loss gradient w.r.t entrance shift 
+    dL_dshift[idx] += glm::vec3(
+            dL_dmean2D[idx].x * (image_width / 2) * m_hom.x * (-1. / (m_w * m_w)) * theta3 + dL_dmean2D[idx].y * (image_height / 2) * m_hom.y * (-1. / (m_w * m_w)) * theta3,
+            dL_dmean2D[idx].x * (image_width / 2) * m_hom.x * (-1. / (m_w * m_w)) * theta3 + dL_dmean2D[idx].y * (image_height / 2) * m_hom.y * (-1. / (m_w * m_w)) * theta5,
+            dL_dmean2D[idx].x * (image_width / 2) * m_hom.x * (-1. / (m_w * m_w)) * theta3 + dL_dmean2D[idx].y * (image_height / 2) * m_hom.y * (-1. / (m_w * m_w)) * theta7
+            );
+
     //Compute the loss gradient w.r.t projection matrix 
     // the graident flow back from ux (screen), p0, p4, p8, p12
     //dL_dprojmatrix[16 * idx + 0] = m.x * dL_dmean2D[idx].x;
@@ -886,7 +914,7 @@ __global__ void preprocessCUDA(
 
 	// Compute gradient updates due to computing colors from SHs
 	if (shs)
-		computeColorFromSH(idx, D, M, (glm::vec3*)means, *campos, shs, clamped, (glm::vec3*)dL_dcolor, (glm::vec3*)dL_dmeans, (glm::vec3*)dL_dsh, dL_dcampos);
+		computeColorFromSH(idx, D, M, (glm::vec3*)means, *campos, shs, clamped, (glm::vec3*)dL_dcolor, (glm::vec3*)dL_dmeans, (glm::vec3*)dL_dsh, dL_dcampos, dL_dshift);
 
 	// Compute gradient updates due to computing covariance from scale/rotation
 	if (scales)
@@ -1128,7 +1156,8 @@ void BACKWARD::preprocess(
 	glm::vec4* dL_drot,
 	float* dL_dprojmatrix,
 	float* dL_dviewmatrix,
-	float* dL_dcampos)
+	float* dL_dcampos,
+    float* dL_dshift)
 {
 	// Propagate gradients for the path of 2D conic matrix computation. 
 	// Somewhat long, thus it is its own kernel rather than being part of 
@@ -1144,10 +1173,12 @@ void BACKWARD::preprocess(
 		tan_fovx,
 		tan_fovy,
 		viewmatrix,
+		projmatrix,
 		dL_dconic,
 		(float3*)dL_dmean3D,
 		dL_dcov3D,
 		dL_dviewmatrix,
+        (glm::vec3*)dL_dshift,
         dL_ddepths,
         intrinsic);
 
@@ -1182,7 +1213,8 @@ void BACKWARD::preprocess(
 		dL_dscale,
         dL_drot,
 		dL_dprojmatrix,
-		(glm::vec3*)dL_dcampos);
+		(glm::vec3*)dL_dcampos,
+		(glm::vec3*)dL_dshift);
 }
 
 void BACKWARD::render(

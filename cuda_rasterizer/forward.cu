@@ -384,13 +384,19 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// Transform point by projecting
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
 	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
-    float2 ab = {p_hom.x / p_hom.z, p_hom.y / p_hom.z};
+
+    // calculate entrance pupil shift based on pts under camera coordinate instead of pixel space (should not use projmatrix)
+	//float3 t = transformPoint4x3(p_orig, projmatrix);
+    //float2 ab = {t.x / t.z, t.y / t.z};
+    // maybe projmatrix is better... before intrinsic is to small to observe
+    float2 ab = {p_hom.x / p_hom.w, p_hom.y / p_hom.w};
     float theta = atan(sqrt(ab.x * ab.x + ab.y * ab.y));
     float theta2 = theta * theta;
     float theta3 = theta2 * theta;
     float theta5 = theta2 * theta3;
     float theta7 = theta2 * theta5;
     float entrance_pupil_shift = shift_factors[0] * theta3 + shift_factors[1] * theta5 + shift_factors[2] * theta7;
+
     p_hom.w += entrance_pupil_shift;
 
     // implement only for llff
